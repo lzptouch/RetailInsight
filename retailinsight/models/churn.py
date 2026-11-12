@@ -131,8 +131,15 @@ def _feature_importance(model, X_test: pd.DataFrame, y_test: np.ndarray) -> dict
             .sort_values(ascending=False).round(4).to_dict())
 
 
-def shap_explain(model, X: pd.DataFrame, seed: int = SEED) -> tuple[dict, pd.DataFrame | None]:
+def shap_explain(model, X: pd.DataFrame, seed: int = SEED,
+                sample: bool = True) -> tuple[dict, pd.DataFrame | None]:
     """SHAP 全局重要性 + 单会员归因。
+
+    参数
+    ----
+    sample:
+        True 时按固定种子抽样 ``SHAP_SAMPLE`` 条计算（控制耗时，用于**全局重要性**）；
+        False 时对全量计算（用于**逐会员归因**，否则抽样外的会员拿不到归因）。
 
     返回 (全局重要性 dict, 单会员 shap 值 DataFrame 或 None)。
     无 shap 依赖或模型不支持 TreeExplainer 时降级为 permutation importance，
@@ -142,12 +149,19 @@ def shap_explain(model, X: pd.DataFrame, seed: int = SEED) -> tuple[dict, pd.Dat
         print("[churn] 警告：未安装 shap，降级为 permutation importance")
         return {"method": "permutation_importance"}, None
     try:
-        sample = X.sample(min(SHAP_SAMPLE, len(X)), random_state=seed)
+        if sample and len(X) > SHAP_SAMPLE:
+            X = X.sample(SHAP_SAMPLE, random_state=seed)
         explainer = shap.TreeExplainer(model)
-        sv = explainer.shap_values(sample)
+        sv = explainer.shap_values(X)
+        # 二分类在不同 shap 版本下有三种返回形态：
+        #   1) list[ndarray]（旧版，每个输出一项）
+        #   2) ndarray 形状 (n, n_features)（单输出）
+        #   3) ndarray 形状 (n, n_features, 2)（新版，每类一项）→ 取正类
         if isinstance(sv, list):
             sv = sv[-1]
-        sv = pd.DataFrame(sv, columns=FEATURES, index=sample.index)
+        elif getattr(sv, "ndim", 1) == 3:
+            sv = sv[:, :, -1]
+        sv = pd.DataFrame(sv, columns=list(X.columns), index=X.index)
         global_imp = (sv.abs().mean().sort_values(ascending=False).round(4).to_dict())
         global_imp["method"] = "shap.TreeExplainer"
         return global_imp, sv
@@ -287,7 +301,7 @@ def run_churn() -> dict:
     p_valid = gbdt.predict_proba(X_valid)[:, 1]
     thresholds = tune_thresholds(y_valid, p_valid)
 
-    importance, shap_values = shap_explain(gbdt, X_valid)
+    importance, _ = shap_explain(gbdt, X_valid)
     if "method" not in importance:
         importance = _feature_importance(gbdt, X_test, y_test)
 
@@ -296,14 +310,17 @@ def run_churn() -> dict:
     latest["churn_prob"] = gbdt.predict_proba(latest[FEATURES].fillna(0))[:, 1].round(4)
     latest["risk_level"] = _risk_level(latest["churn_prob"], thresholds)
 
-    # 单会员归因：Top 贡献特征（SHAP 可用时用 SHAP，否则留空并说明）
+    # 单会员归因：Top 贡献特征。
+    # 注意必须在**末期 cohort 自身**上算 SHAP —— 验证集的 shap 值与末期会员对不上，
+    # 合并后会得到全空列。
     out_cols = ["member_id", "churn_prob", "risk_level", "churn"] + FEATURES
-    if shap_values is not None:
-        latest = latest.merge(
-            shap_values.apply(lambda r: r.abs().idxmax(), axis=1)
-            .rename("top_shap_feature").reset_index(),
-            left_on="member_id", right_on="index", how="left")
-        latest = latest.drop(columns=["index"])
+    # 用 member_id 作为索引，SHAP 的行才能和会员一一对应（位置索引会导致错位）
+    latest_feat = latest.set_index("member_id")[FEATURES].fillna(0)
+    _, shap_latest = shap_explain(gbdt, latest_feat, sample=False)
+    if shap_latest is not None:
+        top = (shap_latest.abs().idxmax(axis=1).rename("top_shap_feature")
+               .reset_index())   # index 即 member_id
+        latest = latest.merge(top, on="member_id", how="left")
         out_cols.append("top_shap_feature")
     write_parquet(latest[out_cols], MART_CHURN)
 
