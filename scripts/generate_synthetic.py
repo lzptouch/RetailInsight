@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from retailinsight.io.loader import write_parquet
+from retailinsight.io.loader import derive_txn_month, write_parquet, write_partitioned
 from retailinsight.io.schema import (
     AGE_BAND_WEIGHTS,
     AGE_BANDS,
@@ -25,8 +25,9 @@ from retailinsight.io.schema import (
     CITY_TIER_WEIGHTS,
     CITY_TIERS,
     PERSONAS,
+    SKU_ANCHOR_PAIRS_PER_CATEGORY,
 )
-from retailinsight.settings import DATA_END, DATA_START, RAW_DIR, SEED
+from retailinsight.settings import DATA_END, DATA_START, RAW_DIR, RAW_ITEMS_DIR, RAW_ITEMS_FILE, SEED
 
 START = pd.Timestamp(DATA_START)
 END = pd.Timestamp(DATA_END)
@@ -221,8 +222,12 @@ def generate_items(txn: pd.DataFrame, persona_of_member_txn: np.ndarray,
     cat_of[:] = _sample_with_cdf(cat_cdf, len(cat_of), rng)
 
     cat_index = {c: i for i, c in enumerate(CATEGORIES)}
+    # 记录每组锚点的命中掩码 —— 后面 SKU 级锚点要用同一批命中交易，
+    # 保证「品类锚点」与「SKU 锚点」落在同一批交易上（口径一致）
+    anchor_hits: dict[tuple[str, str], np.ndarray] = {}
     for cat_a, cat_b, prob in ANCHOR_COMBOS:
         hit = (rng.random(t) < prob) & (k >= 2)
+        anchor_hits[(cat_a, cat_b)] = hit
         pos = starts[hit]
         cat_of[pos] = cat_index[cat_a]
         cat_of[pos + 1] = cat_index[cat_b]
@@ -240,6 +245,29 @@ def generate_items(txn: pd.DataFrame, persona_of_member_txn: np.ndarray,
         if len(pool) == 0:
             pool = sku_arr[:1]
         sku_of[mask] = pool[rng.integers(0, len(pool), size=int(mask.sum()))]
+
+    # ---- SKU 级强关联埋点（计划 §8.3 / R-9）----
+    # 品类级锚点只保证「这两个品类会一起出现」，但每个品类有 80+ 个 SKU，
+    # 同品类内的具体商品是随机采样的 → SKU 级信号被稀释到
+    # lift 上限仅 1.8、confidence <4%（实测），挖不出有业务价值的单品级规则。
+    # 因此对每组锚点，再指定**固定的 SKU 组合**（品类内销量前 2 的 SKU），
+    # 让单品级关联规则有可验证的埋点。
+    for cat_a, cat_b in anchor_hits:
+        pool_a = np.sort(cat_to_skus[cat_index[cat_a]])
+        pool_b = np.sort(cat_to_skus[cat_index[cat_b]])
+        if len(pool_a) == 0 or len(pool_b) == 0:
+            continue
+        hit = anchor_hits[(cat_a, cat_b)]
+        n_pairs = min(SKU_ANCHOR_PAIRS_PER_CATEGORY, len(pool_a), len(pool_b))
+        # 每笔命中交易**只分配给一个** SKU 对（按顺序交错），且固定放在篮子前两位。
+        # 若让同一批交易承载多组 SKU，挖出来的全是 2→2 组合规则；
+        # 而业务要的是清晰的「单品 A → 单品 B」货架建议。
+        idx = np.flatnonzero(hit & (k >= 2))
+        for j in range(n_pairs):
+            sel = idx[j::n_pairs]
+            pos = starts[sel]
+            sku_of[pos] = pool_a[j]
+            sku_of[pos + 1] = pool_b[j]
 
     qty = rng.poisson(1.2, size=len(cat_of)) + 1
     price_map = pd.Series(products["base_price"].to_numpy(), index=products["sku"].to_numpy())
@@ -309,7 +337,11 @@ def main() -> None:
     write_parquet(stores, RAW_DIR / "stores.parquet")
     write_parquet(products, RAW_DIR / "products.parquet")
     write_parquet(txn, RAW_DIR / "transactions.parquet")
-    write_parquet(items, RAW_DIR / "transaction_items.parquet")
+    # 明细按 txn_month 分区（计划 §4.4）：原始层就分区，避免下游任何环节读全量明细
+    items = derive_txn_month(items, txn)
+    write_partitioned(items, RAW_ITEMS_DIR, "txn_month")
+    if RAW_ITEMS_FILE.exists():
+        RAW_ITEMS_FILE.unlink()
 
     print(f"[gen] transactions={len(txn)} items={len(items)}")
     print(f"[gen] dirty_stats={dirty_stats}")

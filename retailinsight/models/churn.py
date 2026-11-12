@@ -26,6 +26,7 @@ from retailinsight.settings import (
     COHORT_CUTOFFS,
     COST_FALSE_NEGATIVE,
     COST_FALSE_POSITIVE,
+    ITEMS_DIR,
     MART_CHURN,
     REPORTS_DIR,
     SEED,
@@ -245,11 +246,11 @@ def _risk_level(prob: pd.Series, thresholds: dict) -> pd.Series:
 
 
 def run_churn() -> dict:
-    from retailinsight.io.loader import read_parquet, write_parquet
+    from retailinsight.io.loader import read_items, read_parquet, write_parquet
     from retailinsight.settings import INTERIM_DIR
 
     txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-    items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+    items = read_items(ITEMS_DIR)
     products = read_parquet(INTERIM_DIR / "products.parquet")
     members = read_parquet(INTERIM_DIR / "members.parquet")
 

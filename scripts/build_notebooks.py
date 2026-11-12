@@ -60,13 +60,13 @@ EDA = [
 > 目标：摸清数据规模、质量与业务形态，并**回收计划 §4.2 预埋的关联锚点**。
 > 纪律：所有指标调用 `retailinsight`，不重算。"""),
     code("""import pandas as pd
-from retailinsight.io.loader import read_parquet
-from retailinsight.settings import INTERIM_DIR
+from retailinsight.io.loader import read_parquet, read_items
+from retailinsight.settings import INTERIM_DIR, ITEMS_DIR
 
 pd.set_option("display.max_columns", 50)
 members = read_parquet(INTERIM_DIR / "members.parquet")
 txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+items = read_items(ITEMS_DIR)
 products = read_parquet(INTERIM_DIR / "products.parquet")
 stores = read_parquet(INTERIM_DIR / "stores.parquet")
 
@@ -175,12 +175,12 @@ CLUSTER = [
 > 目标：回答「会员除了 RFM 规则分群，还能不能被无监督地分成结构不同的群体」。
 > 关键结论见文末：**轮廓系数达标与否取决于特征空间，不取决于调参**。"""),
     code("""import pandas as pd
-from retailinsight.io.loader import read_parquet
-from retailinsight.settings import INTERIM_DIR, MART_CLUSTER, MART_RFM
+from retailinsight.io.loader import read_items, read_parquet
+from retailinsight.settings import INTERIM_DIR, ITEMS_DIR, MART_CLUSTER, MART_RFM
 
 rfm = read_parquet(MART_RFM)
 txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+items = read_items(ITEMS_DIR)
 products = read_parquet(INTERIM_DIR / "products.parquet")
 """),
     md("""## 3.1 候选特征空间

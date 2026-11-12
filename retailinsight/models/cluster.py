@@ -28,8 +28,8 @@ from retailinsight.features.cluster_features import (
     LOG1P_FEATURES,
     build_cluster_features,
 )
-from retailinsight.io.loader import read_parquet, write_parquet
-from retailinsight.settings import INTERIM_DIR, MART_CLUSTER, MART_RFM, REPORTS_DIR, SEED
+from retailinsight.io.loader import read_items, read_parquet, write_parquet
+from retailinsight.settings import INTERIM_DIR, ITEMS_DIR, MART_CLUSTER, MART_RFM, REPORTS_DIR, SEED
 
 #: 轮廓系数验收线（计划 §8.1）
 SILHOUETTE_TARGET = 0.35
@@ -312,7 +312,7 @@ def run_cluster() -> dict:
 
     rfm = read_parquet(MART_RFM)
     txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-    items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+    items = read_items(ITEMS_DIR)
     products = read_parquet(INTERIM_DIR / "products.parquet")
 
     feats = build_cluster_features(rfm, txn, items, products)
@@ -340,6 +340,10 @@ def run_cluster() -> dict:
                          chosen["silhouette"])
     charts.cluster_radar(desc)
 
+    # 模型对比：K-Means vs GMM vs DBSCAN（计划 §8.1 / R-7）
+    from retailinsight.models.cluster_compare import model_comparison_report
+    comparison = model_comparison_report(feats, chosen["features"], chosen["k"], persona)
+
     result = {
         "k": chosen["k"],
         "feature_space": choice,
@@ -350,6 +354,7 @@ def run_cluster() -> dict:
         "min_cluster_share": chosen["min_cluster_share"],
         "ari_vs_persona": chosen["ari"],
         "oracle_silhouette": chosen["oracle_silhouette"],
+        "model_comparison": comparison,
         "space_evaluations": [{k: v for k, v in ev.items()
                                if k not in ("labels", "desc", "persona_check")}
                               for ev in evaluations],
@@ -365,5 +370,13 @@ def run_cluster() -> dict:
           f"ARI={chosen['ari']}")
     print(f"[cluster] 神谕上界 silhouette={chosen['oracle_silhouette']} "
           f"（用真实先验人群当标签）")
+    print(f"[cluster] 模型对比 → 推荐 {comparison['recommendation']}")
+    for r in comparison["results"]:
+        if "error" in r:
+            print(f"[cluster]   {r['model']}: 失败 {r['error']}")
+            continue
+        print(f"[cluster]   {r['model']:8s} sil={r['silhouette']:.4f} "
+              f"簇数={r['n_clusters']} 最小群={r['min_cluster_share']:.1%} "
+              f"噪声={r['noise_share']:.1%}")
     print(desc[["cluster_id", "cluster_name", "member_cnt", "member_share", "gmv_share"]])
     return result

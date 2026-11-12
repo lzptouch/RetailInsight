@@ -27,13 +27,13 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-from retailinsight.io.loader import read_parquet
+from retailinsight.io.loader import read_items, read_parquet
 from retailinsight.models.churn import (
     _gbdt,
     build_cohort_samples,
     evaluate,
 )
-from retailinsight.settings import INTERIM_DIR, REPORTS_DIR, SEED
+from retailinsight.settings import INTERIM_DIR, ITEMS_DIR, REPORTS_DIR, SEED
 
 ALL_CUTOFFS = ["2021-04-01", "2021-07-01", "2021-10-01", "2022-01-01", "2022-04-01"]
 
@@ -95,7 +95,7 @@ def run_one(cohorts: dict, cutoffs: list[str], n_train: int, n_valid: int,
 
 def main() -> None:
     txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-    items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+    items = read_items(ITEMS_DIR)
     products = read_parquet(INTERIM_DIR / "products.parquet")
     members = read_parquet(INTERIM_DIR / "members.parquet")
 

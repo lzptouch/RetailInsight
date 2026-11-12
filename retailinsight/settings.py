@@ -22,6 +22,12 @@ MART_PROFILE = MARTS_DIR / "mart_member_profile.parquet"
 MART_CHURN = MARTS_DIR / "mart_churn_score.parquet"
 MART_RULES = MARTS_DIR / "mart_basket_rules.parquet"
 MART_CLUSTER = MARTS_DIR / "mart_cluster.parquet"
+
+# ---- 分区明细路径（计划 §4.4：明细按 txn_month 分区，窗口期只加载所需分区）----
+ITEMS_FILE = INTERIM_DIR / "transaction_items.parquet"   # 兼容旧产物（单文件）
+ITEMS_DIR = INTERIM_DIR / "transaction_items"            # 分区目录（hive 风格）
+RAW_ITEMS_FILE = RAW_DIR / "transaction_items.parquet"
+RAW_ITEMS_DIR = RAW_DIR / "transaction_items"
 MART_MONTHLY = MARTS_DIR / "mart_monthly.parquet"
 MART_QUARTERLY = MARTS_DIR / "mart_quarterly.parquet"
 

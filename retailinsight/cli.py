@@ -7,11 +7,13 @@ Stage 依赖顺序（`all` 按此顺序执行）：
 - `cluster` 依赖 mart_rfm，产出聚类表（mart_cluster）
 - `churn`   产出流失得分表（mart_churn_score）
 - `profile` 依赖 mart_rfm + mart_churn_score，产出画像宽表（含 churn_prob）
+- `warehouse` 建 DuckDB 星型模型，并用 SQL 重算 RFM 与 pandas 版做一致性断言
 """
 import argparse
 import time
 
-STAGES = ["gen", "etl", "rfm", "cluster", "rules", "churn", "profile", "reports", "report"]
+STAGES = ["gen", "etl", "rfm", "cluster", "rules", "rules_sku", "rules_store",
+          "churn", "profile", "warehouse", "reports", "report"]
 
 
 def stage_gen(scale: float, seed: int) -> None:
@@ -41,21 +43,25 @@ def stage_rfm() -> None:
 def stage_profile() -> None:
     """画像宽表：依赖 mart_rfm 与 mart_churn_score。"""
     from retailinsight.features.tags import build_profile
-    from retailinsight.io.loader import read_parquet, write_parquet
-    from retailinsight.settings import INTERIM_DIR, MART_CHURN, MART_PROFILE, MART_RFM
+    from retailinsight.io.loader import read_items, read_parquet, write_parquet
+    from retailinsight.settings import INTERIM_DIR, ITEMS_DIR, MART_CHURN, MART_PROFILE, MART_RFM
 
     members = read_parquet(INTERIM_DIR / "members.parquet")
     txn = read_parquet(INTERIM_DIR / "transactions.parquet")
-    items = read_parquet(INTERIM_DIR / "transaction_items.parquet")
+    items = read_items(ITEMS_DIR)
     products = read_parquet(INTERIM_DIR / "products.parquet")
     rfm = read_parquet(MART_RFM)
     churn = read_parquet(MART_CHURN)
 
     profile = build_profile(members, txn, items, products, rfm, churn=churn)
+    # CLV 简化法（计划 §8.4 / R-6）：月均消费 × 预期留存月数 × 毛利率
+    from retailinsight.models.clv import compute_clv
+    profile = compute_clv(profile, churn=churn)
     write_parquet(profile, MART_PROFILE)
     covered = int(profile["churn_covered"].sum())
     print(f"[profile] rows={len(profile)} cols={len(profile.columns)} "
           f"churn_covered={covered} ({covered / len(profile):.1%})")
+    print(profile.groupby("clv_tier", observed=True)["clv"].agg(["count", "mean"]).round(1))
 
 
 def stage_reports() -> None:
@@ -108,11 +114,20 @@ def main() -> None:
         elif s == "rules":
             from retailinsight.models.rules import run_rules
             run_rules()
+        elif s == "rules_sku":
+            from retailinsight.models.rules import run_sku_rules
+            run_sku_rules()
+        elif s == "rules_store":
+            from retailinsight.models.rules import run_store_rules
+            run_store_rules(level="category")
         elif s == "churn":
             from retailinsight.models.churn import run_churn
             run_churn()
         elif s == "profile":
             stage_profile()
+        elif s == "warehouse":
+            from retailinsight.etl.warehouse import main as build_wh
+            build_wh()
         elif s == "reports":
             stage_reports()
         elif s == "report":
