@@ -1,0 +1,29 @@
+# 只放**能自动修复、且改动无争议**的钩子。
+#
+# 刻意不包含：
+# - `ruff format`：仓库基线尚未统一格式化（约 50/56 个文件会被重排），
+#   放进钩子会让每次提交都变成巨型 diff，评审时看不出真实改动。
+#   （见 Makefile 里 `make format` 的说明）
+# - `end-of-file-fixer` / `trailing-whitespace`：同理，会一次性改写大量
+#   历史文件的行尾，冲掉真正的改动。
+#
+# 用法：`pre-commit install` 之后每次提交自动跑；手动全量检查：
+# `pre-commit run --all-files`。
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # 与 pyproject / 本地 `ruff --version` 保持一致（0.17.4）
+    rev: v0.17.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      # 数据产物本该被 .gitignore 挡住，这里是第二道闸：万一误加，
+      # 3000 KB 的单文件也不可能悄悄进版本库
+      - id: check-added-large-files
+        args: ["--maxkb=3000"]

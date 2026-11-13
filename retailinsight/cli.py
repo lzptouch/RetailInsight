@@ -61,7 +61,15 @@ def stage_profile() -> None:
     """画像宽表：依赖 mart_rfm 与 mart_churn_score。"""
     from retailinsight.features.tags import build_profile
     from retailinsight.io.loader import read_items, read_parquet, write_parquet
-    from retailinsight.settings import INTERIM_DIR, ITEMS_DIR, MART_CHURN, MART_PROFILE, MART_RFM
+    from retailinsight.settings import (
+        COHORT_CUTOFFS,
+        INTERIM_DIR,
+        ITEMS_DIR,
+        MART_CHURN,
+        MART_PROFILE,
+        MART_RFM,
+        REPORTS_DIR,
+    )
 
     members = read_parquet(INTERIM_DIR / "members.parquet")
     txn = read_parquet(INTERIM_DIR / "transactions.parquet")
@@ -71,14 +79,41 @@ def stage_profile() -> None:
     churn = read_parquet(MART_CHURN)
 
     profile = build_profile(members, txn, items, products, rfm, churn=churn)
-    # CLV 简化法（计划 §8.4 / R-6）：月均消费 × 预期留存月数 × 毛利率
-    from retailinsight.models.clv import compute_clv
+
+    # ---- CLV：主口径 BG/NBD + Gamma-Gamma（v3.7），简化法保留为对照列 ----
+    import json
+
+    import pandas as pd
+
+    from retailinsight.models import clv_bgnbd
+    from retailinsight.models.clv import CLV_GROSS_MARGIN, apply_bgnbd_clv, compute_clv
+
     profile = compute_clv(profile, churn=churn)
+    cutoff = pd.Timestamp(COHORT_CUTOFFS[-1])
+    if clv_bgnbd.available():
+        summary = clv_bgnbd.build_summary(txn, cutoff)
+        bgf, ggf = clv_bgnbd.fit_models(summary)
+        profile = apply_bgnbd_clv(
+            profile, clv_bgnbd.predict_clv(bgf, ggf, summary, gross_margin=CLV_GROSS_MARGIN))
+        metrics = clv_bgnbd.backtest(
+            txn, pd.Timestamp(clv_bgnbd.BACKTEST_OBS_END),
+            pd.Timestamp(clv_bgnbd.BACKTEST_HOLD_END))
+        metrics.update({"cutoff": str(cutoff.date()),
+                        "horizon_months": clv_bgnbd.HORIZON_MONTHS,
+                        "gross_margin": CLV_GROSS_MARGIN})
+        (REPORTS_DIR / "metrics_clv.json").write_text(
+            json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[profile] CLV 主口径 = BG/NBD：回测金额 MAE {metrics['bgnbd']['amount_mae']} "
+              f"vs 简化法 {metrics['simple']['amount_mae']}（降 {metrics['mae_reduction_pct']}%），"
+              f"偏差 {metrics['bgnbd']['amount_bias']} vs {metrics['simple']['amount_bias']}")
+    else:
+        print("[profile] 警告：未安装 lifetimes，CLV 退回简化法（clv_method=simple_fallback）")
+
     write_parquet(profile, MART_PROFILE)
     covered = int(profile["churn_covered"].sum())
     print(f"[profile] rows={len(profile)} cols={len(profile.columns)} "
           f"churn_covered={covered} ({covered / len(profile):.1%})")
-    print(profile.groupby("clv_tier", observed=True)["clv"].agg(["count", "mean"]).round(1))
+    print(profile.groupby("clv_method", observed=True)["clv"].agg(["count", "mean"]).round(1))
 
 
 def stage_reports() -> None:

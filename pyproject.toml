@@ -22,6 +22,10 @@ dependencies = [
     "duckdb>=1.0",
     "plotly>=5.18",
     "shap>=0.44",
+    # CLV 主口径 BG/NBD + Gamma-Gamma（v3.7）。放主依赖的理由与上面三项相同：
+    # `profile` stage 必经。缺失时会**显式降级**到简化法（clv_method=simple_fallback），
+    # 不会静默产出空列。
+    "lifetimes>=0.11",
 ]
 
 [project.optional-dependencies]

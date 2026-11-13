@@ -56,6 +56,25 @@ def test_compute_clv_merges_churn_table_and_uses_formula():
     assert row["expected_lifetime_months"] == pytest.approx(lt)
 
 
+def test_compute_clv_clips_negative_and_fills_missing():
+    """退货导致的负月均不该变成负 CLV；注册未购（月均 NaN）该是 0 而不是 NaN。
+
+    这两条都曾在小样本上让「客群 CLV 均值」失真：负值把均值往下拽，
+    NaN 让 groupby 直接丢掉整行。
+    """
+    profile = pd.DataFrame({
+        "member_id": [1, 2, 3],
+        "monthly_amount": [-5.0, float("nan"), 100.0],
+        "rfm_segment": ["A", "B", "C"],
+    })
+    churn = pd.DataFrame({"member_id": [1, 2, 3], "churn_prob": [0.3, 0.3, 0.3]})
+    out = compute_clv(profile, churn)
+
+    assert out["clv_simple"].notna().all()
+    assert out["clv_simple"].ge(0).all()
+    assert out.loc[out["member_id"].isin([1, 2]), "clv_simple"].eq(0.0).all()
+
+
 def test_compute_clv_requires_churn_prob():
     profile = pd.DataFrame({"member_id": [1], "monthly_amount": [10.0]})
     with pytest.raises(ValueError, match="churn_prob"):

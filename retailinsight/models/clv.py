@@ -1,8 +1,15 @@
 """CLV 客户终身价值（计划 §8.4 / R-6）。
 
-**口径声明（重要）**：本项目实现的是**简化法**，不是 BG/NBD + Gamma-Gamma。
+**两种口径，主口径是 BG/NBD**（v3.7 起）：
+
+1. **BG/NBD + Gamma-Gamma**（``models/clv_bgnbd.py``）—— 主口径。
+   用个体购买节奏推断「还在不在」与「多久买一次」，给出未来 12 个月期望毛利，
+   并有 91 天时间外回测做同台比较（金额 MAE 229.27 vs 270.81，降 15.3%，
+   见 `reports/metrics_clv.json`）。
+2. **简化法**（本模块）—— 对照口径，也是 lifetimes 缺失时的降级路径。
+
 简化法的好处是每个输入都来自已有产物、可逐行追溯；代价是假设了
-「留存期服从几何分布」，对现金流的时间分布做了强假设。
+「留存期服从几何分布、月均消费恒定」，同一客群的人会被给出几乎相同的价值。
 
     月流失率   m = 1 - (1 - p_90d) ^ (1/3)      # p_90d 是 90 天标签窗的流失概率
     预期留存月数 L = 1 / m
@@ -73,9 +80,52 @@ def compute_clv(profile: pd.DataFrame, churn: pd.DataFrame | None = None,
         df["expected_lifetime_months"].median())
 
     arpu = df["monthly_amount"] if "monthly_amount" in df.columns else df.get("monetary")
-    df["clv"] = (arpu * df["expected_lifetime_months"] * gross_margin).round(2)
-    df["clv_tier"] = pd.qcut(df["clv"].rank(method="first"), 4,
-                              labels=["低CLV", "中低CLV", "中高CLV", "高CLV"])
+    # 下限裁到 0：净额含退货，会把「退得比买得多」的人算成负 CLV。
+    # 客户价值的语义下限是「不贡献」，不是「倒扣」。
+    # 无交易会员的 `monthly_amount` 是 NaN，CLV 应当是 0（注册未购），不是 NaN ——
+    # 否则下游 groupby 会把这些人整行丢掉，「客群 CLV 均值」只统计了买过的人。
+    df["clv_simple"] = (arpu * df["expected_lifetime_months"] * gross_margin
+                        ).round(2).clip(lower=0).fillna(0.0)
+    # 默认口径先落在简化法上；接入 BG/NBD 后由 apply_bgnbd_clv 覆盖。
+    # 「clv 永远是当前采用的口径」这条约定让卡片 / 看板 / Excel 都不用关心来源。
+    df["clv"] = df["clv_simple"]
+    df["clv_method"] = "simple_fallback"
+    df["clv_tier"] = _clv_tier(df["clv"])
+    return df
+
+
+def _clv_tier(clv: pd.Series) -> pd.Series:
+    """按 CLV 四分位分层（低 / 中低 / 中高 / 高）。"""
+    return pd.qcut(clv.rank(method="first"), 4,
+                   labels=["低CLV", "中低CLV", "中高CLV", "高CLV"])
+
+
+def apply_bgnbd_clv(profile: pd.DataFrame, clv_bgnbd: pd.Series) -> pd.DataFrame:
+    """把 BG/NBD 的 CLV 接成**主口径**，简化法保留为对照列。
+
+    参数
+    ----
+    profile: ``compute_clv`` 的输出（已含 ``clv_simple``）
+    clv_bgnbd: BG/NBD 预测的 CLV，索引为 member_id
+
+    落在画像里没有任何 BG/NBD 值的会员（新客、只买过一次且被模型判为
+    极低频的人）会退回 ``clv_simple``，并在 ``clv_method`` 逐行标注 ——
+    口径混用必须可追溯，不能只看一列数字。
+    """
+    if "clv_simple" not in profile.columns:
+        raise ValueError("apply_bgnbd_clv 需要先跑 compute_clv（缺 clv_simple 列）")
+
+    df = profile.copy()
+    bg = clv_bgnbd.rename("clv_bgnbd").reset_index()
+    bg.columns = ["member_id", "clv_bgnbd"]
+    df = df.merge(bg, on="member_id", how="left")
+
+    covered = df["clv_bgnbd"].notna()
+    df["clv"] = np.where(covered, df["clv_bgnbd"], df["clv_simple"]).round(2)
+    df["clv_method"] = np.where(
+        covered, "bgnbd",
+        np.where(df["clv_simple"] > 0, "simple_fallback", "no_purchase"))
+    df["clv_tier"] = _clv_tier(df["clv"])
     return df
 
 

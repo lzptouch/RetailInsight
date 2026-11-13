@@ -1,0 +1,46 @@
+name: CI
+
+# 定位：**守住已经修过的坑**，不做全链路重跑。
+# 历史教训（差距清单 #23）：所有修复都在工作区、HEAD 里缺 `retailinsight/reports/`
+# 整包，`git clone` 出来的仓库根本 import 不了 —— 没有 CI 时这类问题只能靠人记住。
+# 所以这里跑「干净 clone + ruff + pytest」，数据链路（`make all`）留给本地。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev --frozen
+      - run: uv run ruff check .
+
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          # 与本地开发环境一致（uv.lock 按 3.13 解析）；扩到 3.11/3.12 前
+          # 要先在本机验证 pandas / lifetimes 的解析结果，否则是给 CI 埋红。
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --extra dev --frozen
+      # 仓库不含 data/（.gitignore 锚定根路径，数据产物不进版本库）：
+      # 依赖真实产物的用例会 **显式 skip 并写明原因**，不是静默通过。
+      # 覆盖率闸门（--cov-fail-under=60）只在「有数据的全量运行」有意义，
+      # 本地 `make all && make test` 负责；CI 用 --no-cov，避免把
+      # 「没数据所以只执行了 138 个用例」误判成「覆盖率暴跌」。
+      - run: uv run pytest -q --no-cov
