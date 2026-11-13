@@ -34,6 +34,55 @@ def write_partitioned(df: pd.DataFrame, dir_path: Path, partition_col: str) -> P
     return dir_path
 
 
+def append_partitioned(df: pd.DataFrame, dir_path: Path, partition_col: str,
+                       part_name: str) -> Path:
+    """向已有分区目录**追加**一个 part 文件（不清空旧分区）。
+
+    `write_partitioned` 是「整体重写」语义（先清空再写 part-0），适合一次性生成；
+    但大规模生成必须**分块流式落盘**，否则千万级明细会把内存打爆。
+    分块写入时每个块各写一个 ``part-{i}.parquet``，读侧
+    （`pd.read_parquet(目录)`）会自动把同分区的多个 part 合并。
+
+    ``part_name`` 同名文件会先删除，保证同一 chunk 重复执行不会产生重复数据。
+    """
+    dir_path = Path(dir_path)
+    for value, sub in df.groupby(partition_col, observed=True, sort=True):
+        target = dir_path / f"{partition_col}={value}"
+        target.mkdir(parents=True, exist_ok=True)
+        f = target / f"{part_name}.parquet"
+        if f.exists():
+            f.unlink()
+        sub.drop(columns=[partition_col]).to_parquet(f, index=False)
+    return dir_path
+
+
+def concat_parquet_parts(parts: list[Path], target: Path, part_col: str = "txn_month") -> Path:
+    """把多个 parquet part **流式**合并成一个文件（每次只驻留一个 part 在内存）。
+
+    为什么不用 ``pd.concat``：大规模下所有 part 同时驻留内存正是要避免的事。
+    这里用 `pq.ParquetWriter` 顺序 write_table，峰值 ≈ 单个 part。
+    """
+    import pyarrow.parquet as pq
+
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not parts:
+        return target
+    writer = None
+    try:
+        for p in parts:
+            table = pq.read_table(p)
+            if part_col in table.column_names:
+                table = table.drop([part_col])
+            if writer is None:
+                writer = pq.ParquetWriter(target, table.schema)
+            writer.write_table(table)
+    finally:
+        if writer is not None:
+            writer.close()
+    return target
+
+
 def read_parquet(path: Path, columns: list[str] | None = None,
                  filters: list | None = None) -> pd.DataFrame:
     """读 parquet；``path`` 是目录时按分区数据集读（支持 ``filters`` 下推）。"""

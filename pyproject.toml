@@ -16,17 +16,26 @@ dependencies = [
     "scikit-learn>=1.4",
     "mlxtend>=0.23",
     "streamlit>=1.30",
+    # 以下 4 项曾被漏声明（v3.4 修复）：缺 duckdb 则 `--stage all` 在 warehouse 崩、
+    # 缺 plotly 则看板启动即崩、缺 shap 则逐会员归因静默清空（不报错，只是列全空）。
+    # 它们是**主链路必经**，因此必须进主依赖，不能放可选组。
+    "duckdb>=1.0",
+    "plotly>=5.18",
+    "shap>=0.44",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5", "psutil>=5.9"]
+# lightgbm 是可**显式降级**的可选依赖：缺失时自动退 sklearn HistGB，
+# 并在 metrics_churn.json 的 backend 字段留痕（见 models/churn.py 顶部）。
 lgbm = ["lightgbm>=4.0"]
-# P1 阶段才会用到的可选依赖（数据集接入 / DuckDB 星型模型），不进主依赖以免虚增安装体积
-p1 = ["duckdb>=1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=retailinsight --cov-report=term-missing --cov-fail-under=60"
+# 覆盖率门禁**不放在 addopts 里**：放在 addopts 会让 `pytest tests/xxx.py`
+# 这种单文件/单用例运行必然因「总覆盖率 0%」而红（v3.6 修）。门禁保留在
+# `make test` / `make cov`（见 Makefile）与 CI 上，作用于**全量**运行。
+addopts = "-q --cov=retailinsight --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 110

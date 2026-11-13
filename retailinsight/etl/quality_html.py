@@ -69,10 +69,16 @@ def render_quality_html(report: dict, path: Path | None = None) -> Path:
         _bar_rows(k, int(before.get(k, 0)), int(after.get(k, 0))) for k in keys
     )
 
-    miss = details.get("missing_rates", {})
+    miss_before = details.get("missing_rates", {})
+    miss_after = details.get("missing_rates_after", {})
+    how_member = "转 member_type=非会员 标记列"
+    how_other = "兜底填充 / 标记"
     miss_rows = "\n".join(
-        f"<tr><td>{k}</td><td>{float(v):.4%}</td></tr>" for k, v in sorted(miss.items())
-    ) or '<tr><td colspan="2">清洗后无缺失字段（缺失已转为哨兵值 / 标记列）</td></tr>'
+        f"<tr><td>{k}</td><td>{float(miss_before.get(k, 0)):.4%}</td>"
+        f"<td>{float(miss_after.get(k, 0)):.4%}</td>"
+        f"<td>{how_member if k.endswith('member_id') else how_other}</td></tr>"
+        for k in sorted(set(miss_before) | set(miss_after))
+    ) or '<tr><td colspan="4">两个阶段均无缺失字段</td></tr>'
 
     dedup = int(details.get("dedup_removed", 0))
     total_txn = int(before.get("transactions", 0)) or 1
@@ -105,12 +111,13 @@ def render_quality_html(report: dict, path: Path | None = None) -> Path:
 <h2>三、行数对比图</h2>
 {cmps}
 
-<h2>四、字段缺失率（清洗后）</h2>
-<table><tr><th>表.字段</th><th>缺失率</th></tr>
+<h2>四、字段缺失率（清洗前 → 清洗后）</h2>
+<table><tr><th>表.字段</th><th>清洗前</th><th>清洗后</th><th>处理方式</th></tr>
 {miss_rows}</table>
-<p class="note">说明：缺失在清洗阶段被转为<strong>哨兵值 / 标记列</strong>
-（如会员ID 缺失 → 非会员），因此清洗后表内没有 NaN。
-这一节展示的是「清洗后仍为空的字段」，而非清洗前的缺失情况。</p>
+<p class="note">说明：本项目的缺失以<strong>哨兵值</strong>形式出现在原始数据里
+（会员ID 缺失写成 <code>-1</code>，字符串缺失写成空串 / <code>unknown</code>），
+不是 NaN。因此缺失率按<strong>业务口径</strong>统计（<code>*_id == -1</code> 与空串都算缺失），
+清洗阶段把缺失转为<strong>标记列</strong>（如会员ID 缺失 → 非会员），所以清洗后为 0。</p>
 </body></html>"""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")

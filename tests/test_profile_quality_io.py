@@ -72,11 +72,16 @@ def test_build_profile_with_churn_adds_labels():
     assert np.isnan(prof.loc[3, "churn_prob"])
 
 
-def test_missing_rates_only_reports_nan_columns():
+def test_missing_rates_counts_nan_and_reports_only_dirty_columns():
+    """NaN 与**哨兵值**都算缺失；干净列不出现。"""
     df = pd.DataFrame({"a": [1, 2, None], "b": [1, 2, 3]})
     rates = missing_rates({"t": df})
     assert rates["t.a"] == pytest.approx(1 / 3, abs=1e-6)
     assert "t.b" not in rates
+
+    df2 = pd.DataFrame({"member_id": [1, 2, -1], "amount": [1.0, 2.0, 3.0]})
+    rates2 = missing_rates({"t": df2})
+    assert rates2["t.member_id"] == pytest.approx(1 / 3, abs=1e-6)
 
 
 def test_build_quality_report_structure():

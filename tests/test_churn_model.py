@@ -97,3 +97,54 @@ def test_shap_explain_samples_when_requested():
     _, sv = shap_explain(model, X, sample=True)
     assert sv is not None
     assert len(sv) == SHAP_SAMPLE
+
+
+# --------------------------------------------------- 主模型选型（规则化，不是拍脑袋）
+
+def test_select_main_model_picks_highest_ks_among_passing_models():
+    """达标组（AUC ≥ 基线+0.03）非空时，取组内 KS 最高的那个。"""
+    from retailinsight.models.churn import select_main_model
+
+    name, info = select_main_model(
+        {"gbdt": {"auc": 0.86, "ks": 0.40},
+         "random_forest": {"auc": 0.85, "ks": 0.49}},   # 两个都达标，RF 的 KS 更高
+        baseline_auc=0.80)
+    assert name == "random_forest"
+    assert info["auc_gain_reached"] is True
+    assert info["candidates"]["gbdt"]["passed_auc_gate"] is True
+    assert info["candidates"]["random_forest"]["auc_gain_vs_lr"] == pytest.approx(0.05, abs=1e-9)
+
+
+def test_select_main_model_falls_back_and_flags_unreached():
+    """全部不达标时取 AUC 最高者，并**如实标记**未达验收线。"""
+    from retailinsight.models.churn import select_main_model
+
+    name, info = select_main_model(
+        {"gbdt": {"auc": 0.81, "ks": 0.30},
+         "random_forest": {"auc": 0.805, "ks": 0.35}},
+        baseline_auc=0.80)
+    assert name == "gbdt"
+    assert info["auc_gain_reached"] is False
+    assert "未达标" in info["reason"]
+    assert all(v["passed_auc_gate"] is False for v in info["candidates"].values())
+
+
+def test_select_main_model_is_deterministic_on_ties():
+    """完全并列时按固定顺序取名，保证同一份数据每次跑结论一致。"""
+    from retailinsight.models.churn import select_main_model
+
+    a = select_main_model({"gbdt": {"auc": 0.85, "ks": 0.4},
+                           "random_forest": {"auc": 0.85, "ks": 0.4}}, baseline_auc=0.80)[0]
+    b = select_main_model({"random_forest": {"auc": 0.85, "ks": 0.4},
+                           "gbdt": {"auc": 0.85, "ks": 0.4}}, baseline_auc=0.80)[0]
+    assert a == b == "gbdt"
+
+
+def test_tuned_thresholds_are_rounded_to_two_decimals():
+    """切点要进报告/阈值表被业务执行，不能带浮点尾数（0.4700000000000001）。"""
+    rng = np.random.default_rng(2)
+    y = np.array([0] * 900 + [1] * 100)
+    p = np.concatenate([rng.normal(0.2, 0.05, 900), rng.normal(0.7, 0.1, 100)])
+    th = tune_thresholds(y, p)
+    for key in ("action", "mid", "high"):
+        assert th[key] == round(th[key], 2), f"{key}={th[key]} 仍带浮点尾数"

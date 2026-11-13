@@ -20,6 +20,13 @@
     "alias_fixed": 1,
     "logic_errors": 1511,
     "outlier_threshold": 806.6344999999984,
-    "missing_rates": {}
+    "missing_rates": {
+      "members.gender": 0.03938888888888889,
+      "transactions.member_id": 0.029682140261916172
+    },
+    "missing_rates_after": {
+      "members.gender": 0.03938888888888889,
+      "transactions.member_id": 0.02983056468869889
+    }
   }
 }

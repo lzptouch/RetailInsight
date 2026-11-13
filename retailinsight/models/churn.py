@@ -208,9 +208,11 @@ def tune_thresholds(y_valid: np.ndarray, p_valid: np.ndarray,
         false_alarm = int((flagged & (y_valid == 0)).sum())
         return fn_cost * missed + cost_fp * false_alarm
 
-    t_action = float(min(grid, key=lambda t: _cost(t, cost_fn)))
-    t_mid = float(min(grid, key=lambda t: _cost(t, max(cost_fn / 4.0, 1.0))))
-    t_high = float(min(grid, key=lambda t: _cost(t, 1.0)))
+    # `np.arange` 的浮点累积误差会漏进结果（0.4700000000000001 这种），
+    # 而切点是要写进报告、进阈值表、被业务同学拿去执行的数字 —— 就地 round。
+    t_action = round(float(min(grid, key=lambda t: _cost(t, cost_fn))), 2)
+    t_mid = round(float(min(grid, key=lambda t: _cost(t, max(cost_fn / 4.0, 1.0)))), 2)
+    t_high = round(float(min(grid, key=lambda t: _cost(t, 1.0))), 2)
 
     # 保证单调递增，避免出现非法分箱
     t_mid = min(max(t_mid, t_action), t_high)

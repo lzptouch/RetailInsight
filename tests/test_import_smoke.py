@@ -48,7 +48,7 @@ def test_cli_stages_all_importable():
         assert importlib.import_module(name) is not None
 
 
-@pytest.mark.parametrize("script", ["generate_synthetic.py", "download_data.py",
+@pytest.mark.parametrize("script", ["generate_synthetic.py",
                                     "build_notebooks.py", "exp_churn_sensitivity.py",
                                     "exp_scale5.py", "fix_lightgbm_dylib.py"])
 def test_scripts_compile(script):

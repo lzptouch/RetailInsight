@@ -55,7 +55,10 @@ def run_etl() -> dict:
         "alias_fixed": alias_fixed,
         "logic_errors": int(txn["is_logic_error"].sum()),
         "outlier_threshold": outlier_thr,
-        "missing_rates": missing_rates(cleaned),
+        # 清洗前 / 清洗后各记一份：缺失在原始数据里是哨兵值（member_id = -1），
+        # 只在清洗后统计必然全为 0，会让「缺失率」这一节永远空表（v3.4 缺陷）。
+        "missing_rates": missing_rates(raw),
+        "missing_rates_after": missing_rates(cleaned),
     }
     report = build_quality_report(before, after, details)
     path = write_quality_report(report)

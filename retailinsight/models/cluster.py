@@ -344,6 +344,22 @@ def run_cluster() -> dict:
     from retailinsight.models.cluster_compare import model_comparison_report
     comparison = model_comparison_report(feats, chosen["features"], chosen["k"], persona)
 
+    # 特征空间结论：**证据全部从实际评估结果里生成**，
+    # 不写死数字 —— 早期版本把这张表硬编码在代码里，数据一更新就与实测脱节。
+    evidence = {}
+    for ev in evaluations:
+        oracle = ev["oracle_silhouette"]
+        oracle_s = "—" if oracle is None else f"{oracle:+.4f}"
+        evidence[ev["space"]] = (
+            f"ARI {ev['ari']:.4f} / 轮廓 {ev['silhouette']:.4f} / 神谕上界 {oracle_s}"
+            if ev["ari"] is not None else
+            f"轮廓 {ev['silhouette']:.4f}（无先验真值可比）"
+        )
+    best_ari = max((ev["ari"] or 0.0) for ev in evaluations)
+    oracles = [ev["oracle_silhouette"] for ev in evaluations
+               if ev["oracle_silhouette"] is not None]
+    oracle_max = max(oracles) if oracles else None
+    oracle_txt = ("—" if oracle_max is None else f"{oracle_max:+.4f}")
     result = {
         "k": chosen["k"],
         "feature_space": choice,
@@ -359,17 +375,14 @@ def run_cluster() -> dict:
                                if k not in ("labels", "desc", "persona_check")}
                               for ev in evaluations],
         "feature_space_conclusion": {
-            "finding": "扩展行为维度并没有提升对先验人群的还原度（ARI 反而下降）",
-            "evidence": {
-                "rfm3（选中）": "ARI 0.134 / 轮廓 0.416 / 神谕上界 -0.062",
-                "rfm3_behavior（+3 行为维）": "ARI 0.114 / 轮廓 0.388",
-                "rfm3_behavior_p1（+7 P1 维）": "ARI 0.090 / 轮廓 0.355",
-                "rfm3+PCA1(行为P1 降维)": "轮廓 0.565 但 ARI 仅 0.104",
-                "逐一叠加单个 P1 特征": "ARI 0.058~0.117，均低于纯 rfm3",
-            },
+            "finding": (
+                "扩展行为维度并没有提升对先验人群的还原度"
+                f"（选中空间 ARI {best_ari:.4f} 为所有空间最高）"
+            ),
+            "evidence": evidence,
             "interpretation": (
-                "所有特征空间的**神谕上界都接近 0 或为负** —— 即使用真实先验人群当标签，"
-                "这些特征也分不开。说明 ARI 的上限由**数据本身**决定（8 类人群在可观测行为上"
+                f"各特征空间的**神谕上界最高仅 {oracle_txt}**（即使用真实先验人群当标签，"
+                "这些特征也分不开）。说明 ARI 的上限由**数据本身**决定（8 类人群在可观测行为上"
                 "本就重合），而不是特征工程投入不足。继续堆特征只会因高维稀释拉低内聚度。"
             ),
             "implication": (

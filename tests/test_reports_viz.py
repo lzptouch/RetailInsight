@@ -37,6 +37,10 @@ def _seed_interim(tmp_path, monkeypatch):
         df.to_parquet(interim / f"{name}.parquet", index=False)
     monkeypatch.setattr(core_reports, "INTERIM_DIR", interim)
     monkeypatch.setattr(core_reports, "MARTS_DIR", tmp_path / "marts")
+    # 明细走分区目录常量（`core_reports` 里是 import 进来的独立名字，
+    # 只 patch INTERIM_DIR 管不到它 —— v3.6 前干净仓库里这 3 个用例因此读真实
+    # `data/interim` 而红）。这里把 ITEMS_DIR 指向 fixture 写出的单个 parquet。
+    monkeypatch.setattr(core_reports, "ITEMS_DIR", interim / "transaction_items.parquet")
     return interim
 
 

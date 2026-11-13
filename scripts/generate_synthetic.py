@@ -15,7 +15,13 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from retailinsight.io.loader import derive_txn_month, write_parquet, write_partitioned
+from retailinsight.io.loader import (
+    append_partitioned,
+    concat_parquet_parts,
+    derive_txn_month,
+    write_parquet,
+    write_partitioned,
+)
 from retailinsight.io.schema import (
     AGE_BAND_WEIGHTS,
     AGE_BANDS,
@@ -38,6 +44,79 @@ N_DAYS = (END - START).days + 1
 CITIES = [("上海", "一线"), ("北京", "一线"), ("广州", "一线"), ("深圳", "一线"), ("成都", "一线"),
           ("杭州", "二线"), ("武汉", "二线"), ("南京", "二线"), ("西安", "二线"), ("苏州", "二线"),
           ("绵阳", "三线"), ("洛阳", "三线"), ("宜昌", "三线"), ("柳州", "三线"), ("保定", "三线")]
+
+
+#: 区位驱动的**门店品类结构差异**（v3.5）。
+#: 此前 15 家店共用同一套品类权重 → 建议报告 S8 实测「门店品类结构差异度 < 0.001」，
+#: 门店级差异化策略**无法被量化验证**。这里按城市档位给品类加乘子：
+#: 一线偏即食/进口/现制，三四线偏粮油/调味/腌腊（符合真实商超规律）。
+TIER_CATEGORY_BOOST: dict[str, dict[str, float]] = {
+    "一线": {
+        "进口食品": 2.2, "咖啡茶饮": 1.9, "现制饮品": 1.9, "面包糕点": 1.6,
+        "熟食卤味": 1.6, "方便速食": 1.5, "乳制品": 1.4, "化妆品": 1.3,
+        "水果": 1.25, "饮料": 1.2,
+        "粮油米面": 0.45, "腌腊制品": 0.5, "调味品": 0.6, "纸尿裤": 0.7,
+    },
+    "二线": {
+        "乳制品": 1.15, "面包糕点": 1.1, "休闲零食": 1.1, "方便速食": 1.05,
+        "粮油米面": 0.9, "调味品": 0.95, "进口食品": 0.85, "咖啡茶饮": 0.9,
+    },
+    "三线": {
+        "粮油米面": 1.9, "腌腊制品": 1.8, "调味品": 1.5, "南北干货": 1.5,
+        "白酒红酒": 1.4, "纸品": 1.35, "冷冻食品": 1.3, "休闲零食": 1.25,
+        "进口食品": 0.4, "咖啡茶饮": 0.5, "现制饮品": 0.5, "化妆品": 0.55,
+        "熟食卤味": 0.7,
+    },
+}
+
+
+#: **人群级**品类偏好（v3.5）。此前各客群品类结构差异度仅 0.00002~0.00158，
+#: 画像卡片的「偏好品类 TOP3」8 个客群写的都是「饮料/乳制品/调味品」——
+#: 这一行永远相同，等于没有信息量。这里按人群行为给品类加乘子。
+PERSONA_CATEGORY_BOOST: dict[str, dict[str, float]] = {
+    "高频高值": {"进口食品": 1.8, "牛羊肉": 1.6, "水产海鲜": 1.6, "水果": 1.4,
+                 "白酒红酒": 1.4, "化妆品": 1.2, "粮油米面": 0.7},
+    "周末囤货": {"纸品": 1.6, "粮油米面": 1.5, "清洁用品": 1.5, "冷冻食品": 1.4,
+                 "纸尿裤": 1.3, "熟食卤味": 0.7},
+    "促销敏感": {"休闲零食": 1.4, "饮料": 1.3, "纸品": 1.3, "糖果巧克力": 1.3,
+                 "进口食品": 0.6, "牛羊肉": 0.7},
+    "新客尝鲜": {"进口食品": 1.5, "现制饮品": 1.5, "烘焙原料": 1.4, "休闲零食": 1.2,
+                 "粮油米面": 0.7},
+    "高频低额": {"方便速食": 1.6, "面包糕点": 1.5, "饮料": 1.4, "熟食卤味": 1.3,
+                 "粮油米面": 0.6, "纸品": 0.75},
+    "季节性": {"水果": 1.6, "饮料": 1.5, "冷冻食品": 1.3, "啤酒": 1.3,
+               "纸品": 0.8},
+    "沉默流失": {},
+    "一次性": {},
+}
+
+#: 乘子的极化指数（采样时取幂）。
+#: k=1 时全量实测门店品类结构差异度仅 **0.015** —— 头部共性品类（粮油/纸品）
+#: 把余弦距离稀释掉了；k=2 时实测 **平均 0.052 / 最高 0.116**，
+#: 落在真实商超 0.05~0.30 区间的下沿，S8 因此从「无法验证」变为「可量化验证」。
+TIER_BOOST_POWER = 2.5
+#: 人群乘子的极化指数。幂 1 时先验人群的品类差异度仅 0.003~0.009（被 Zipf 头部品类稀释），
+#: 幂 3 时达 **0.035**，与门店级（0.050）同量级，画像的「偏好品类 TOP3」才真正分化。
+#: 注意：客群还原受 ARI 上限（≈0.13）约束，规则法客群看到的差异度会**明显小于**这里的先验值。
+PERSONA_BOOST_POWER = 3.0
+
+
+TIER_NAMES = ["一线", "二线", "三线"]
+TIER_CODE = {name: i for i, name in enumerate(TIER_NAMES)}
+
+
+def _build_boost_matrix(persona_names: np.ndarray) -> np.ndarray:
+    """形状 (档位数, 人群数, 品类数) 的品类权重乘子矩阵。"""
+    n_tier, n_persona, n_cat = len(TIER_NAMES), len(persona_names), len(CATEGORIES)
+    mat = np.ones((n_tier, n_persona, n_cat), dtype=np.float64)
+    for ti, tier in enumerate(TIER_NAMES):
+        tier_boost = TIER_CATEGORY_BOOST.get(tier, {})
+        for pi, persona in enumerate(persona_names):
+            persona_boost = PERSONA_CATEGORY_BOOST.get(str(persona), {})
+            for ci, cat in enumerate(CATEGORIES):
+                mat[ti, pi, ci] = (tier_boost.get(cat, 1.0) ** TIER_BOOST_POWER) * \
+                    (persona_boost.get(cat, 1.0) ** PERSONA_BOOST_POWER)
+    return mat
 
 
 def _sample_with_cdf(cdf: np.ndarray, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -133,8 +212,12 @@ def generate_products(n_sku: int, rng: np.random.Generator) -> pd.DataFrame:
     return df, cat_base
 
 
-def generate_transactions(members: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
-    """按人群行为生成交易：频次/时段/周末偏好/生命周期衰减。"""
+def generate_transactions(members: pd.DataFrame, rng: np.random.Generator,
+                          txn_id_offset: int = 0) -> pd.DataFrame:
+    """按人群行为生成交易：频次/时段/周末偏好/生命周期衰减。
+
+    ``txn_id_offset``：分块生成时保证全局 ``txn_id`` 唯一（块内从 1 开始）。
+    """
     m = members
     n = len(m)
     persona = m["_persona"].to_numpy()
@@ -207,7 +290,7 @@ def generate_transactions(members: pd.DataFrame, rng: np.random.Generator) -> pd
     store_id = np.where(cross_hit, alt_store, home_store)
 
     txn = pd.DataFrame({
-        "txn_id": np.arange(1, t + 1, dtype=np.int64),
+        "txn_id": np.arange(txn_id_offset + 1, txn_id_offset + t + 1, dtype=np.int64),
         "member_id": m["member_id"].to_numpy()[member_idx],
         "store_id": store_id,
         "txn_ts": txn_ts,
@@ -219,8 +302,13 @@ def generate_transactions(members: pd.DataFrame, rng: np.random.Generator) -> pd
 
 def generate_items(txn: pd.DataFrame, persona_of_member_txn: np.ndarray,
                    persona_names: np.ndarray, products: pd.DataFrame,
-                   cat_base: np.ndarray, rng: np.random.Generator) -> pd.DataFrame:
-    """生成交易明细：件数按人群，品类按 Zipf 热度，4 组锚点组合注入。"""
+                   cat_base: np.ndarray, rng: np.random.Generator,
+                   store_tier: np.ndarray | None = None) -> pd.DataFrame:
+    """生成交易明细：件数按人群，品类按 Zipf 热度 × **门店区位乘子**，4 组锚点组合注入。
+
+    ``store_tier``：长度 = 门店数，第 i 个元素是 ``store_id = i+1`` 的城市档位。
+    给了它，品类分布就按门店所在档位偏移 —— 这是「门店级品类策略可量化验证」的前提。
+    """
     t = len(txn)
     basket_mu = np.array([PERSONAS[p]["basket"] for p in persona_names[persona_of_member_txn]])
     k = rng.poisson(np.maximum(basket_mu - 1, 1)) + 1  # 至少 1 件
@@ -235,8 +323,24 @@ def generate_items(txn: pd.DataFrame, persona_of_member_txn: np.ndarray,
 
     # 默认：Zipf 热度采样品类
     zipf_w = 1.0 / np.arange(1, n_cat + 1) ** 1.1
-    cat_cdf = np.cumsum(zipf_w / zipf_w.sum())
-    cat_of[:] = _sample_with_cdf(cat_cdf, len(cat_of), rng)
+    # 双维乘子：门店档位（区位）× 人群（行为）。两者都缺席时退化为全局 Zipf。
+    boost_mat = _build_boost_matrix(persona_names)
+    persona_of_item = persona_of_member_txn[txn_pos]
+    if store_tier is None:
+        tier_code = np.zeros(len(cat_of), dtype=np.int8)
+    else:
+        # 门店档位 → 整数编码（只对 15 家店做一次转换，再向量化索引到每件商品）
+        tier_of_store = np.array([TIER_CODE.get(str(t), 0) for t in np.asarray(store_tier)],
+                                 dtype=np.int8)
+        store_of_item = txn["store_id"].to_numpy()[txn_pos]
+        tier_code = tier_of_store[store_of_item - 1]
+    group_key = tier_code * len(persona_names) + persona_of_item
+    for g in pd.unique(group_key):
+        m = group_key == g
+        ti, pi = divmod(int(g), len(persona_names))
+        w = zipf_w * boost_mat[ti, pi]
+        cdf = np.cumsum(w / w.sum())
+        cat_of[m] = _sample_with_cdf(cdf, int(m.sum()), rng)
 
     cat_index = {c: i for i, c in enumerate(CATEGORIES)}
     # 记录每组锚点的命中掩码 —— 后面 SKU 级锚点要用同一批命中交易，
@@ -344,41 +448,138 @@ def inject_dirty(txn: pd.DataFrame, items: pd.DataFrame,
     return txn, items, stats
 
 
+def _generate_block(members_block: pd.DataFrame, products: pd.DataFrame,
+                    cat_base: np.ndarray, persona_names: np.ndarray,
+                    rng: np.random.Generator, txn_id_offset: int,
+                    store_tier: np.ndarray | None = None):
+    """生成一个会员块的交易与明细（供分块流式生成复用）。"""
+    txn, member_idx, _persona = generate_transactions(
+        members_block, rng, txn_id_offset=txn_id_offset)
+    n_raw = len(txn)   # 注入重复行**之前**的交易数 —— 下一块的 txn_id 偏移必须用它
+    persona_code = pd.Categorical(members_block["_persona"], categories=list(PERSONAS)).codes
+    items = generate_items(txn, persona_code[member_idx], persona_names, products, cat_base, rng,
+                           store_tier=store_tier)
+    txn, items, dirty = inject_dirty(txn, items, rng)
+    return txn, items, dirty, n_raw
+
+
+def generate(n_members: int, seed: int = SEED, chunk_size: int = 0,
+             raw_dir: Path = RAW_DIR, raw_items_dir: Path = RAW_ITEMS_DIR,
+             raw_items_file: Path | None = RAW_ITEMS_FILE) -> dict:
+    """生成全套合成数据并落盘，返回统计。
+
+    ``chunk_size``：>0 且小于总会员数时**分块流式生成**——每块生成完立刻落盘，
+    峰值内存 ≈ 单块，因此可以生成千万级明细而不爆内存（`--scale 5` 及以上必需）。
+    分块模式下 ``txn_id`` 通过偏移保持全局唯一，明细按块追加 ``part-{i}`` 文件，
+    最后把交易 part 流式合并成单个 ``transactions.parquet``。
+
+    注意：``chunk_size=0``（默认）走一次性生成路径，**随机数调用顺序与历史产物完全一致**，
+    因此既有产物、报告与测试基线都不受影响。
+    """
+    rng = np.random.default_rng(seed)
+    n_sku = 5000
+    stores = generate_stores()   # 不消耗 rng
+    store_tier = stores.sort_values("store_id")["city_tier"].to_numpy(dtype=object)
+    persona_names = np.array(list(PERSONAS), dtype=object)
+    totals = {"transactions": 0, "items": 0, "dup_injected": 0,
+              "missing_member_injected": 0, "returns_injected": 0,
+              "logic_conflict_injected": 0}
+    raw_dir = Path(raw_dir)
+    raw_items_dir = Path(raw_items_dir)
+
+    chunked = 0 < chunk_size < n_members
+    if not chunked:
+        # ---- 一次性路径（保持历史随机序列不变）----
+        members = generate_members(n_members, rng)
+        products, cat_base = generate_products(n_sku, rng)
+        txn, items, dirty, _n_raw = _generate_block(
+            members, products, cat_base, persona_names, rng, 0, store_tier)
+        totals.update({k: int(v) for k, v in dirty.items()})
+        totals["transactions"], totals["items"] = len(txn), len(items)
+        members_out = members.drop(columns=["_reg_day", "_stop_day"])
+        write_parquet(members_out, raw_dir / "members.parquet")
+        write_parquet(stores, raw_dir / "stores.parquet")
+        write_parquet(products, raw_dir / "products.parquet")
+        write_parquet(txn, raw_dir / "transactions.parquet")
+        items = derive_txn_month(items, txn)
+        write_partitioned(items, raw_items_dir, "txn_month")
+        if raw_items_file is not None and Path(raw_items_file).exists():
+            Path(raw_items_file).unlink()
+        return totals
+
+    # ---- 分块流式路径 ----
+    products, cat_base = generate_products(n_sku, rng)
+    write_parquet(stores, raw_dir / "stores.parquet")
+    write_parquet(products, raw_dir / "products.parquet")
+
+    # 清空上一次的产物（分块是「整体重建」语义）
+    if raw_items_dir.exists():
+        for stale in raw_items_dir.glob("txn_month=*"):
+            for f in stale.rglob("*"):
+                if f.is_file():
+                    f.unlink()
+    txn_parts_dir = raw_dir / "_txn_parts"
+    if txn_parts_dir.exists():
+        for f in txn_parts_dir.glob("*.parquet"):
+            f.unlink()
+    txn_parts_dir.mkdir(parents=True, exist_ok=True)
+
+    member_frames: list[pd.DataFrame] = []
+    txn_parts: list[Path] = []
+    n_chunks = (n_members + chunk_size - 1) // chunk_size
+    txn_offset = 0
+    for i in range(n_chunks):
+        nb = min(chunk_size, n_members - i * chunk_size)
+        block = generate_members(nb, rng)
+        block["member_id"] = block["member_id"] + i * chunk_size   # 全局唯一 ID
+        member_frames.append(block)
+        txn, items, dirty, n_raw = _generate_block(
+            block, products, cat_base, persona_names, rng, txn_offset, store_tier)
+        # 偏移用「注入重复前」的交易数：重复行沿用原 txn_id，不占用新号段
+        txn_offset += n_raw
+        for k in ("dup_injected", "missing_member_injected", "returns_injected",
+                  "logic_conflict_injected"):
+            totals[k] += int(dirty.get(k, 0))
+        totals["transactions"] += len(txn)
+        totals["items"] += len(items)
+
+        txn_part = txn_parts_dir / f"part-{i}.parquet"
+        write_parquet(txn, txn_part)
+        txn_parts.append(txn_part)
+        items = derive_txn_month(items, txn)
+        append_partitioned(items, raw_items_dir, "txn_month", f"part-{i}")
+        print(f"[gen] chunk {i + 1}/{n_chunks}: members={nb} txn={len(txn)} items={len(items)}")
+
+    members_all = pd.concat(member_frames, ignore_index=True)
+    write_parquet(members_all.drop(columns=["_reg_day", "_stop_day"]), raw_dir / "members.parquet")
+    # 交易 part 流式合并成单文件（峰值 ≈ 单 part）
+    concat_parquet_parts(txn_parts, raw_dir / "transactions.parquet")
+    for f in txn_parts:
+        f.unlink()
+    txn_parts_dir.rmdir()
+    if raw_items_file is not None and Path(raw_items_file).exists():
+        Path(raw_items_file).unlink()
+    return totals
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成悦鲜生活超市合成数据")
-    parser.add_argument("--scale", type=float, default=0.3, help="规模档位：0.3 调试 / 1 正式 / 5 压测")
+    parser.add_argument("--scale", type=float, default=0.3,
+                        help="规模档位：0.3 调试 / 1 正式 / 5 压测（会员数 = 120000 × scale）")
+    parser.add_argument("--members", type=int, default=None,
+                        help="直接指定会员数（优先级高于 --scale；用于「精确要多少」的场景）")
+    parser.add_argument("--chunk-size", type=int, default=0,
+                        help="分块大小（会员数/块）。0=不分块；大规模生成建议 50000~200000，"
+                             "峰值内存 ≈ 单块")
     parser.add_argument("--seed", type=int, default=SEED)
     args = parser.parse_args()
-    rng = np.random.default_rng(args.seed)
 
-    n_members = int(120_000 * args.scale)
-    n_sku = 5000
-    print(f"[gen] scale={args.scale} seed={args.seed} members={n_members}")
-
-    members = generate_members(n_members, rng)
-    stores = generate_stores()
-    products, cat_base = generate_products(n_sku, rng)
-    txn, member_idx, persona = generate_transactions(members, rng)
-    persona_names = np.array(list(PERSONAS), dtype=object)
-    # persona_of_member_txn: 每笔交易对应会员的 persona 下标
-    persona_code = pd.Categorical(members["_persona"], categories=list(PERSONAS)).codes
-    items = generate_items(txn, persona_code[member_idx], persona_names, products, cat_base, rng)
-    txn, items, dirty_stats = inject_dirty(txn, items, rng)
-
-    # 内部埋点列不入库（仅成员表保留 _persona 供对照，另存一份供测试）
-    members_out = members.drop(columns=["_reg_day", "_stop_day"])
-    write_parquet(members_out, RAW_DIR / "members.parquet")
-    write_parquet(stores, RAW_DIR / "stores.parquet")
-    write_parquet(products, RAW_DIR / "products.parquet")
-    write_parquet(txn, RAW_DIR / "transactions.parquet")
-    # 明细按 txn_month 分区（计划 §4.4）：原始层就分区，避免下游任何环节读全量明细
-    items = derive_txn_month(items, txn)
-    write_partitioned(items, RAW_ITEMS_DIR, "txn_month")
-    if RAW_ITEMS_FILE.exists():
-        RAW_ITEMS_FILE.unlink()
-
-    print(f"[gen] transactions={len(txn)} items={len(items)}")
-    print(f"[gen] dirty_stats={dirty_stats}")
+    n_members = args.members if args.members else int(120_000 * args.scale)
+    print(f"[gen] scale={args.scale} members={n_members} chunk_size={args.chunk_size} "
+          f"seed={args.seed}")
+    stats = generate(n_members, seed=args.seed, chunk_size=args.chunk_size)
+    print(f"[gen] transactions={stats['transactions']} items={stats['items']}")
+    print(f"[gen] dirty_stats={ {k: v for k, v in stats.items() if k.endswith('_injected')} }")
     print(f"[gen] raw -> {RAW_DIR}")
 
 

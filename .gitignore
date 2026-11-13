@@ -6,8 +6,15 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-data/raw/
-data/interim/
-data/marts/
-reports/
+
+# ---- 数据产物（不进 git，可由 `make all` / `--stage warehouse` 重新生成）----
+# 注意：必须写成 `/data/...`（锚定仓库根），否则会误伤源码目录。
+# 历史教训：`reports/` 未锚定，把**源码包** `retailinsight/reports/` 一起忽略了，
+# 导致 git clone 出来的仓库缺整个 reports 包，`cli run --stage all` 直接 ModuleNotFoundError。
+/data/raw/
+/data/interim/
+/data/marts/
+/data/warehouse.duckdb
+/reports/
+
 .DS_Store

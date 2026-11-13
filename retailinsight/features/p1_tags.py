@@ -311,10 +311,12 @@ def lifecycle_stage(txn: pd.DataFrame, rfm: pd.DataFrame) -> pd.Series:
 
     | 1 新客 | 2 成长 | 3 成熟 | 4 衰退 | 5 沉睡 |
     规则：按 recency 排优先级，再用 frequency 区分新客/成长与成熟/衰退。
+
+    ``rfm`` 的索引必须已经是 ``member_id``（见 :func:`build_p1_tags` 的归一化）。
     """
     if rfm is None or len(rfm) == 0:
         return pd.Series(dtype="float64", name="lifecycle_stage")
-    df = rfm[["member_id", "recency_days", "frequency"]].copy()
+    df = rfm[["recency_days", "frequency"]].copy()
     span = max(float(df["recency_days"].max()), 1.0)
     df["r_pct"] = df["recency_days"] / span
     f_max = max(float(df["frequency"].max()), 1.0)
@@ -333,6 +335,8 @@ def potential_index(rfm: pd.DataFrame) -> pd.Series:
     公式：`0.5 × f 分位 + 0.3 × m 分位 + 0.2 × (1 - r 分位)`，
     再按「m 分位低于 0.6」加权 —— **贡献还没起来**的会员才是"潜力"，
     否则高价值客户会把自己的潜力指数刷满。
+
+    ``rfm`` 的索引必须已经是 ``member_id``（见 :func:`build_p1_tags` 的归一化）。
     """
     if rfm is None or len(rfm) == 0:
         return pd.Series(dtype="float64", name="potential_index")
@@ -347,14 +351,40 @@ def potential_index(rfm: pd.DataFrame) -> pd.Series:
 
 # ---------------------------------------------------------------- 汇总
 
+def _normalize_rfm_index(rfm: pd.DataFrame | None) -> pd.DataFrame | None:
+    """把 RFM 表归一化成「索引 = member_id」。
+
+    **为什么必须做这一步**：本模块大多数标签的索引是 ``member_id``，
+    但 ``lifecycle_stage`` / ``potential_index`` 直接沿用传入表的索引。
+    如果传入的 RFM 表是「RangeIndex + member_id 列」（`mart_rfm` 的形态），
+    这两个标签就会带着 RangeIndex 回到汇总表 —— pandas 按 member_id 重新对齐时
+    **整体错位一格**（member_id 从 1 开始、RangeIndex 从 0 开始），
+    结果是每个会员拿到的潜力指数其实属于**下一个**会员。
+
+    历史教训：这类错位不会报错、不会抛异常，画像宽表照样生成，
+    只有逐行比对才能发现 —— 所以这里做归一化 + 断言，而不是靠调用方自觉。
+    """
+    if rfm is None or len(rfm) == 0:
+        return rfm
+    if rfm.index.name == "member_id":
+        return rfm
+    if "member_id" in rfm.columns:
+        return rfm.set_index("member_id")
+    return rfm
+
+
 def build_p1_tags(txn: pd.DataFrame, items: pd.DataFrame, products: pd.DataFrame,
-                   rfm: pd.DataFrame | None = None) -> pd.DataFrame:
+                  rfm: pd.DataFrame | None = None) -> pd.DataFrame:
     """一次性产出 P1 扩展标签（index=member_id）。
 
     已实现的 20 个 P1 扩展标签里，本模块负责 **17 个**；
     另外 3 个（周末比 / 折扣敏感度 / 季节性强弱）在 `features/behavior.py`，
     CLV 在 `models/clv.py`。
+
+    返回表的索引统一为 ``member_id``；任何一个标签的索引与之不一致都会
+    被断言拦下（见 :func:`_normalize_rfm_index` 的说明）。
     """
+    rfm = _normalize_rfm_index(rfm)
     mi = _member_items(items, txn)
     tags = pd.DataFrame(index=pd.Index([], name="member_id"))
     series_list = [
@@ -377,7 +407,18 @@ def build_p1_tags(txn: pd.DataFrame, items: pd.DataFrame, products: pd.DataFrame
         lifecycle_stage(txn, rfm),
         potential_index(rfm),
     ]
+    # 会员全集：所有标签的索引值必须是它，否则说明某个标签用错了索引
+    # （历史上正是 RangeIndex 与 member_id 混用导致整体错位一格）
+    universe = set(_member_txn(txn)["member_id"].unique().tolist())
     for s in series_list:
-        if s is not None and len(s):
-            tags[s.name] = s
+        if s is None or not len(s):
+            continue
+        idx = pd.Index(s.index, name="member_id")
+        if universe and not set(idx.tolist()).issubset(universe):
+            raise ValueError(
+                f"标签 {s.name} 的索引不是 member_id（部分取值 {sorted(set(idx) - universe)[:5]}）"
+                "—— 会与其它标签 join 时整体错位，必须先归一化"
+            )
+        s = pd.Series(s.to_numpy(), index=idx, name=s.name)
+        tags[s.name] = s
     return tags

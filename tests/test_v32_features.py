@@ -192,15 +192,21 @@ def test_segment_conflict_has_rows():
 # ---------------------------------------------------------------- 质量报告 HTML
 
 @requires_interim
-def test_quality_html_is_self_contained():
+def test_quality_html_is_self_contained(tmp_path):
+    """HTML 报告必须自包含（不依赖外网资源）。
+
+    **必须写到 tmp_path**：早期版本直接写默认路径 `docs/数据质量报告.html`
+    再 `unlink` —— 等于把 ETL 产出的真实产物删掉了，
+    导致「质量报告 HTML」这项能力**交付了但没产出**。
+    """
     from retailinsight.etl.quality_html import render_quality_html
     path = render_quality_html({"before": {"transactions": 100}, "after": {"transactions": 98},
-                                "details": {"dedup_removed": 2}})
+                                "details": {"dedup_removed": 2}},
+                               path=tmp_path / "质量报告.html")
     html = path.read_text(encoding="utf-8")
     assert html.startswith("<!DOCTYPE html>")
     assert "<style>" in html
     assert "http://" not in html and "https://" not in html   # 不依赖外网资源
-    path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------- 关联网络图

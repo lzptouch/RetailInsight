@@ -9,6 +9,7 @@
 - **点选下钻**：点击任意散点 → 右侧展示该会员完整画像 + 同客群对比
 - **客群筛选联动**：左侧筛选客群，散点与明细同步过滤
 """
+import os
 import time
 from pathlib import Path
 
@@ -17,7 +18,9 @@ import plotly.express as px
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent.parent
-MARTS = ROOT / "data" / "marts"
+# 允许用环境变量指向另一套产物目录：自动化测试（streamlit AppTest）与
+# 「换一份数据看看」都靠它，避免测试去读写仓库里的真实产物。
+MARTS = Path(os.environ.get("RETAILINSIGHT_MARTS") or ROOT / "data" / "marts")
 
 # ---- 首屏计时（计划 §11 W5 验收：首屏 < 3 秒）----
 # Streamlit 每次交互都会重跑脚本，所以计时口径是「脚本从开始跑到首屏内容
