@@ -49,6 +49,11 @@ def write_quality_report(report: dict, path: Path | None = None) -> Path:
     path.write_text("\n".join(lines), encoding="utf-8")
     (path.parent / "数据质量报告.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+    # HTML 版（自包含，便于直接发给业务方）
+    from retailinsight.etl.quality_html import render_quality_html
+    html_path = render_quality_html(report)
+    print(f"[quality] HTML 报告 -> {html_path}")
     return path
 
 

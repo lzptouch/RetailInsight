@@ -43,7 +43,8 @@ def _seed_interim(tmp_path, monkeypatch):
 def test_build_core_reports(tmp_path, monkeypatch):
     _seed_interim(tmp_path, monkeypatch)
     core = core_reports.build_core_reports()
-    assert set(core) == {"monthly", "quarterly", "store", "category", "heatmap", "funnel"}
+    assert set(core) == {"monthly", "quarterly", "store", "category", "heatmap",
+                         "funnel", "monthly_repurchase"}
     assert len(core["monthly"]) == 3                 # 2024-01/02/03
     assert {"gmv", "orders", "aov", "member_penetration", "mom", "yoy"} <= set(core["monthly"])
     assert len(core["store"]) == 2

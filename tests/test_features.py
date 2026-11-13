@@ -140,7 +140,8 @@ def test_cluster_features_and_spaces():
     assert len(feats) == 2
     for col in ALL_FEATURES:
         assert col in feats.columns, col
-    assert set(CLUSTER_FEATURE_SPACES) == {"base6", "rfm3", "rfm3_behavior"}
+    assert set(CLUSTER_FEATURE_SPACES) == {"base6", "rfm3", "rfm3_behavior",
+                                           "rfm3_behavior_p1"}
     assert CLUSTER_FEATURES == ["recency_days", "frequency", "monetary",
                                 "avg_basket", "n_categories", "items_per_txn"]
 

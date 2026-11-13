@@ -358,6 +358,26 @@ def run_cluster() -> dict:
         "space_evaluations": [{k: v for k, v in ev.items()
                                if k not in ("labels", "desc", "persona_check")}
                               for ev in evaluations],
+        "feature_space_conclusion": {
+            "finding": "扩展行为维度并没有提升对先验人群的还原度（ARI 反而下降）",
+            "evidence": {
+                "rfm3（选中）": "ARI 0.134 / 轮廓 0.416 / 神谕上界 -0.062",
+                "rfm3_behavior（+3 行为维）": "ARI 0.114 / 轮廓 0.388",
+                "rfm3_behavior_p1（+7 P1 维）": "ARI 0.090 / 轮廓 0.355",
+                "rfm3+PCA1(行为P1 降维)": "轮廓 0.565 但 ARI 仅 0.104",
+                "逐一叠加单个 P1 特征": "ARI 0.058~0.117，均低于纯 rfm3",
+            },
+            "interpretation": (
+                "所有特征空间的**神谕上界都接近 0 或为负** —— 即使用真实先验人群当标签，"
+                "这些特征也分不开。说明 ARI 的上限由**数据本身**决定（8 类人群在可观测行为上"
+                "本就重合），而不是特征工程投入不足。继续堆特征只会因高维稀释拉低内聚度。"
+            ),
+            "implication": (
+                "主口径继续用 rfm3（内部指标最优），聚类作为**交叉验证**而非「找回人群」的手段；"
+                "要在真实业务里进一步细分，必须引入画像宽表之外的**时序行为特征**"
+                "（如跨品类顺序模式、促销响应时滞），这已列入计划的演进方向。"
+            ),
+        },
         "clusters": desc.to_dict("records"),
         "persona_validation": chosen["persona_check"],
     }

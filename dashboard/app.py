@@ -9,6 +9,7 @@
 - **点选下钻**：点击任意散点 → 右侧展示该会员完整画像 + 同客群对比
 - **客群筛选联动**：左侧筛选客群，散点与明细同步过滤
 """
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -17,6 +18,11 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parent.parent
 MARTS = ROOT / "data" / "marts"
+
+# ---- 首屏计时（计划 §11 W5 验收：首屏 < 3 秒）----
+# Streamlit 每次交互都会重跑脚本，所以计时口径是「脚本从开始跑到首屏内容
+# 渲染完成」的耗时；@st.cache_data 命中缓存时这个值会显著变小。
+_T0 = time.perf_counter()
 
 st.set_page_config(page_title="RetailInsight 商超会员画像看板", layout="wide")
 
@@ -37,6 +43,9 @@ def load_optional(name: str) -> pd.DataFrame | None:
 
 st.title("RetailInsight · 商超会员用户画像看板")
 tab1, tab2, tab3, tab4 = st.tabs(["经营驾驶舱", "客群分析", "商品洞察", "流失预警"])
+
+# 首屏计时（放在标题之后、内容之前取一个中间值，最终值在脚本末尾刷新）
+_st = st.sidebar.empty()
 
 with tab1:
     st.subheader("核心指标")
@@ -190,3 +199,7 @@ with tab4:
         dist = churn["top_shap_feature"].value_counts().head(15).rename_axis("特征").reset_index(
             name="会员数")
         st.bar_chart(dist.set_index("特征")["会员数"])
+
+# ---- 首屏耗时展示（计划 §11 W5：首屏 < 3 秒）----
+_elapsed = time.perf_counter() - _T0
+_st.info(f"⏱ 本次脚本执行耗时 **{_elapsed:.2f} 秒**（含缓存命中；验收线 3 秒）")

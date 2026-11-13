@@ -204,18 +204,39 @@ ANCHOR_COMBOS = [
 # 指定固定的 SKU 组合后，单品级关联规则才有可验证的埋点。
 SKU_ANCHOR_PAIRS_PER_CATEGORY = 4
 
+# 进口商品占比（计划 §7.3「进口偏好」标签的商品属性）
+IMPORT_SKU_RATIO = 0.15
+
+# 生鲜品类（计划 §7.3「生鲜占比」标签）
+FRESH_CATEGORIES = [
+    "蔬菜", "水果", "鲜肉", "牛羊肉", "禽肉", "水产海鲜", "鸡蛋", "乳制品",
+]
+
+# 同品类共购埋点：(品类, 命中概率)
+#
+# 为什么需要：§0.7 里补的 SKU 级锚点是**跨品类**的（如啤酒→纸尿裤），
+# 只覆盖了 4 组品类。若只有跨品类锚点，**同品类内**的搭配（如「可乐 + 雪碧」）
+# 在规则挖掘里完全没有信号 —— 而这恰恰是商超里最常见的关联形态
+#（同品类的替代品/互补品一起买）。
+# 这里再埋一组**同品类**的固定 SKU 搭配，让 SKU 级规则不再只靠跨品类锚点。
+SAME_CATEGORY_COMBOS = [
+    ("饮料", 0.08), ("休闲零食", 0.07), ("乳制品", 0.06),
+    ("面包糕点", 0.06), ("调味品", 0.05), ("个人护理", 0.06),
+    ("冷冻食品", 0.05), ("粮油米面", 0.05),
+]
+
 # 8 类隐式人群（合成数据先验，用于聚类有效性对照）
 # freq_per_year: 年消费次数期望；basket: 单次件数期望；price_mult: 客单价系数
 # weekend: 周末消费权重；discount: 折扣敏感概率；life: 生命周期形态
 PERSONAS = {
-    "高频高值": dict(weight=0.10, freq=12, basket=10, price_mult=1.6, weekend=0.5, discount=0.15, life="stable"),
-    "周末囤货": dict(weight=0.12, freq=6, basket=14, price_mult=1.2, weekend=2.5, discount=0.25, life="stable"),
-    "促销敏感": dict(weight=0.15, freq=8, basket=7, price_mult=0.9, weekend=1.0, discount=0.55, life="stable"),
-    "新客尝鲜": dict(weight=0.10, freq=4, basket=5, price_mult=1.0, weekend=1.0, discount=0.20, life="new"),
-    "高频低额": dict(weight=0.12, freq=16, basket=3, price_mult=0.7, weekend=1.0, discount=0.20, life="stable"),
-    "季节性": dict(weight=0.08, freq=5, basket=6, price_mult=1.1, weekend=1.0, discount=0.20, life="seasonal"),
-    "沉默流失": dict(weight=0.18, freq=7, basket=6, price_mult=1.0, weekend=1.0, discount=0.20, life="churn"),
-    "一次性": dict(weight=0.15, freq=1, basket=4, price_mult=1.0, weekend=1.0, discount=0.20, life="once"),
+    "高频高值": dict(weight=0.10, freq=12, basket=10, price_mult=1.6, weekend=0.5, discount=0.15, life="stable", cross_store=0.08),
+    "周末囤货": dict(weight=0.12, freq=6, basket=14, price_mult=1.2, weekend=2.5, discount=0.25, life="stable", cross_store=0.05),
+    "促销敏感": dict(weight=0.15, freq=8, basket=7, price_mult=0.9, weekend=1.0, discount=0.55, life="stable", cross_store=0.22),
+    "新客尝鲜": dict(weight=0.10, freq=4, basket=5, price_mult=1.0, weekend=1.0, discount=0.20, life="new", cross_store=0.18),
+    "高频低额": dict(weight=0.12, freq=16, basket=3, price_mult=0.7, weekend=1.0, discount=0.20, life="stable", cross_store=0.30),
+    "季节性": dict(weight=0.08, freq=5, basket=6, price_mult=1.1, weekend=1.0, discount=0.20, life="seasonal", cross_store=0.10),
+    "沉默流失": dict(weight=0.18, freq=7, basket=6, price_mult=1.0, weekend=1.0, discount=0.20, life="churn", cross_store=0.06),
+    "一次性": dict(weight=0.15, freq=1, basket=4, price_mult=1.0, weekend=1.0, discount=0.20, life="once", cross_store=0.12),
 }
 
 AGE_BANDS = ["18-25", "26-35", "36-45", "46-55", "56+"]

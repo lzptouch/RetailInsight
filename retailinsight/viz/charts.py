@@ -255,3 +255,68 @@ def segment_radar(profile: pd.DataFrame, by: str = "rfm_segment") -> str:
     ax.set_title(f"客群雷达图（by {by}）", pad=22)
     ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.12), fontsize=8)
     return _save(fig, "11_segment_radar")
+
+
+def rule_network(rules: pd.DataFrame, top_n: int = 18, min_lift: float = 1.5) -> str:
+    """关联规则网络图：品类节点 + 有向连线。
+
+    布局用**确定性圆周布局**（不引 networkx）：
+    - 节点 = 出现在 Top-N 规则里的品类，按出现频次决定圆周顺序（高频在前）
+    - 节点大小 ∝ 该品类参与规则的 lift 均值
+    - 连线宽度 ∝ lift，颜色深浅 ∝ confidence
+    - 弧线用 ``connectionstyle="arc3,rad=0.2"``，双向规则自然分开
+    """
+    reg = rules[rules["lift"] > min_lift].nlargest(top_n, "lift").copy()
+    if len(reg) == 0:
+        reg = rules.nlargest(top_n, "lift").copy()
+    if len(reg) == 0:
+        raise ValueError("没有可画的规则")
+
+    nodes: dict[str, list[float]] = {}
+    edges: list[tuple[str, str, float, float]] = []
+    for _, r in reg.iterrows():
+        ants = str(r["antecedents"]).split("/")
+        cons = str(r["consequents"]).split("/")
+        for a in ants:
+            nodes.setdefault(a, []).append(float(r["lift"]))
+        for c in cons:
+            nodes.setdefault(c, []).append(float(r["lift"]))
+        for a in ants:
+            for c in cons:
+                edges.append((a, c, float(r["lift"]), float(r["confidence"])))
+
+    order = sorted(nodes, key=lambda k: (-len(nodes[k]), k))
+    n = len(order)
+    theta = {k: 2 * np.pi * i / max(n, 1) + np.pi / 2 for i, k in enumerate(order)}
+    radius = 1.0
+
+    fig, ax = plt.subplots(figsize=(9.5, 9.5))
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    max_lift = max((e[2] for e in edges), default=1.0)
+    min_lift_obs = min((e[2] for e in edges), default=0.0)
+    span = max(max_lift - min_lift_obs, 1e-9)
+
+    for a, c, lift, conf in edges:
+        x1, y1 = radius * np.cos(theta[a]), radius * np.sin(theta[a])
+        x2, y2 = radius * np.cos(theta[c]), radius * np.sin(theta[c])
+        width = 0.6 + 3.0 * (lift - min_lift_obs) / span
+        alpha = 0.25 + 0.55 * min(conf, 1.0)
+        ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
+                    arrowprops=dict(arrowstyle="-|>", color="#4a7c59",
+                                    lw=width, alpha=alpha,
+                                    connectionstyle="arc3,rad=0.22"))
+
+    for k in order:
+        x, y = radius * np.cos(theta[k]), radius * np.sin(theta[k])
+        size = 380 + 900 * (np.mean(nodes[k]) - min_lift_obs) / span
+        ax.scatter([x], [y], s=size, color="#2f6f4f", alpha=0.88, zorder=3)
+        ax.text(x * 1.16, y * 1.16, k, ha="center", va="center", fontsize=10,
+                color="#1f2933", zorder=4)
+
+    ax.set_xlim(-1.45, 1.45)
+    ax.set_ylim(-1.45, 1.45)
+    ax.set_title(f"关联规则网络图（Top {len(reg)} 条，连线宽度=lift，深浅=confidence）",
+                 fontsize=13, pad=16)
+    return _save(fig, "12_rule_network")

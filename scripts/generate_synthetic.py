@@ -24,7 +24,9 @@ from retailinsight.io.schema import (
     CATEGORY_ALIASES,
     CITY_TIER_WEIGHTS,
     CITY_TIERS,
+    IMPORT_SKU_RATIO,
     PERSONAS,
+    SAME_CATEGORY_COMBOS,
     SKU_ANCHOR_PAIRS_PER_CATEGORY,
 )
 from retailinsight.settings import DATA_END, DATA_START, RAW_DIR, RAW_ITEMS_DIR, RAW_ITEMS_FILE, SEED
@@ -118,6 +120,8 @@ def generate_products(n_sku: int, rng: np.random.Generator) -> pd.DataFrame:
                          for c, i in zip(sku_cat, range(n_sku), strict=False)],
         "brand": rng.choice(brands, size=n_sku),
         "base_price": base_price,
+        # 进口标记（计划 §7.3 的「进口偏好」标签需要这个商品属性）
+        "is_import": (rng.random(n_sku) < IMPORT_SKU_RATIO).astype("int8"),
     })
     # 脏数据：2% 的 SKU 品类名写成别名（如「清洁 用品」）
     dirty_idx = rng.random(n_sku) < 0.02
@@ -189,10 +193,23 @@ def generate_transactions(members: pd.DataFrame, rng: np.random.Generator) -> pd
     basket_value = np.round(pm * np.exp(rng.normal(np.log(120), 0.55, size=t)), 2)
     discount = np.where(rng.random(t) < dc, np.round(basket_value * rng.uniform(0.05, 0.3, size=t), 2), 0.0)
 
+    # ---- 跨店购物埋点 ----
+    # 原实现里每笔交易都发生在会员的「主门店」，导致「跨店消费」「门店集中度」
+    # 两个标签恒为 1 —— 有标签但没有区分度。现实里会员确实会去就近的其它门店，
+    # 这里给一部分会员加「跨店购物」习惯（比例按人群区分）。
+    home_store = m["store_id"].to_numpy()[member_idx]
+    n_stores = 15
+    cross_prob = np.array([PERSONAS[p]["cross_store"] for p in persona])[member_idx]
+    cross_hit = rng.random(t) < cross_prob
+    # 去邻近门店：相邻门店 id（1..15 环形相邻），保证仍在同一批门店里
+    offset = rng.choice([-1, 1], size=t)
+    alt_store = ((home_store - 1 + offset) % n_stores + 1).astype(np.int64)
+    store_id = np.where(cross_hit, alt_store, home_store)
+
     txn = pd.DataFrame({
         "txn_id": np.arange(1, t + 1, dtype=np.int64),
         "member_id": m["member_id"].to_numpy()[member_idx],
-        "store_id": m["store_id"].to_numpy()[member_idx],
+        "store_id": store_id,
         "txn_ts": txn_ts,
         "amount": basket_value,
         "discount": discount,
@@ -268,6 +285,23 @@ def generate_items(txn: pd.DataFrame, persona_of_member_txn: np.ndarray,
             pos = starts[sel]
             sku_of[pos] = pool_a[j]
             sku_of[pos + 1] = pool_b[j]
+
+    # ---- 同品类共购埋点 ----
+    # §0.7 补的 SKU 级锚点是**跨品类**的（啤酒→纸尿裤），只覆盖 4 组品类。
+    # 同品类内的搭配（可乐+雪碧、牛奶+酸奶）是商超里最常见的关联形态，
+    # 若不单独埋点，SKU 级规则就只有跨品类那几对。这里再埋一组
+    # **同品类**固定 SKU 搭配，放在篮子第 3、4 位（与品类锚点的第 1、2 位不冲突）。
+    any_anchor_hit = np.zeros(t, dtype=bool)
+    for hit_mask in anchor_hits.values():
+        any_anchor_hit |= hit_mask
+    for cat, prob in SAME_CATEGORY_COMBOS:
+        pool = np.sort(cat_to_skus[cat_index[cat]])
+        if len(pool) < 2:
+            continue
+        hit = (~any_anchor_hit) & (rng.random(t) < prob) & (k >= 4)
+        pos = starts[hit]
+        sku_of[pos + 2] = pool[0]
+        sku_of[pos + 3] = pool[1]
 
     qty = rng.poisson(1.2, size=len(cat_of)) + 1
     price_map = pd.Series(products["base_price"].to_numpy(), index=products["sku"].to_numpy())

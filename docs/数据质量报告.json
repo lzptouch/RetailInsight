@@ -3,23 +3,23 @@
     "members": 36000,
     "stores": 15,
     "products": 5000,
-    "transactions": 316458,
-    "transaction_items": 2186392
+    "transactions": 315139,
+    "transaction_items": 2174049
   },
   "after": {
     "members": 36000,
     "stores": 15,
     "products": 5000,
-    "transactions": 314884,
-    "transaction_items": 2186392
+    "transactions": 313571,
+    "transaction_items": 2174049
   },
   "details": {
-    "dedup_removed": 1574,
-    "missing_member": 9483,
-    "returns": 3081,
-    "alias_fixed": 3,
-    "logic_errors": 1646,
-    "outlier_threshold": 801.1789999999875,
+    "dedup_removed": 1568,
+    "missing_member": 9354,
+    "returns": 3115,
+    "alias_fixed": 1,
+    "logic_errors": 1511,
+    "outlier_threshold": 806.6344999999984,
     "missing_rates": {}
   }
 }

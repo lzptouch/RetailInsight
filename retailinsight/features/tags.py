@@ -1,8 +1,9 @@
-"""会员画像标签（P0 共 20 个）。"""
+"""会员画像标签（P0 共 20 个 + P1 扩展 18 个 + CLV 4 列）。"""
 import numpy as np
 import pandas as pd
 
 from retailinsight.features.behavior import discount_sensitivity, weekend_ratio
+from retailinsight.features.p1_tags import build_p1_tags
 
 HOUR_BANDS = {"凌晨(0-6)": (0, 6), "上午(6-12)": (6, 12), "下午(12-18)": (12, 18), "晚间(18-24)": (18, 24)}
 
@@ -95,5 +96,11 @@ def build_profile(members: pd.DataFrame, txn: pd.DataFrame, items: pd.DataFrame,
         profile = profile.join(c)
         profile["churn_covered"] = profile["churn_prob"].notna()
         profile["churn_prob"] = profile["churn_prob"].astype("float64")
+
+    # ---- P1 扩展标签（计划 §7.3 的 20 个）----
+    # 由 features/p1_tags.py 一次性实现，画像层与聚类层共用（单一真相源）
+    p1 = build_p1_tags(txn, items, products, rfm_seg)
+    if len(p1.columns):
+        profile = profile.join(p1)
 
     return profile.reset_index()
