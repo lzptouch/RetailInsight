@@ -305,6 +305,33 @@ def test_gitignore_still_ignores_data_products():
         assert r.returncode == 0, f"{t} 应被忽略（数据产物不进 git）"
 
 
+def test_reports_package_is_tracked_in_git_head():
+    """v3.6 #23：`retailinsight/reports/` 必须真的在 HEAD 里。
+
+    历史事故：`.gitignore` 的 `reports/` 未锚定根路径，源码包被整体忽略；
+    之后用 `git add -f` 强塞进索引 —— `git ls-files` 看得见、`git ls-tree HEAD`
+    却是空的，于是 clone 下来依旧缺 `retailinsight.reports`。
+    **`git ls-files` 只说明「我本机有」，`git ls-tree HEAD` 才说明「别人拉得到」。**
+    """
+    import subprocess
+    if not (ROOT / ".git").exists():
+        pytest.skip("快照目录没有 .git，无法核对 HEAD 内容")
+    out = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", "--", "retailinsight/reports"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout
+    tracked = {line.strip() for line in out.splitlines() if line.strip()}
+    required = {
+        "retailinsight/reports/__init__.py",
+        "retailinsight/reports/core_reports.py",
+        "retailinsight/reports/render_decision_report.py",
+        "retailinsight/reports/profile_cards.py",
+        "retailinsight/reports/excel_report.py",
+    }
+    missing = sorted(required - tracked)
+    assert not missing, f"HEAD 里缺少这些文件（clone 后 import 必崩）：{missing}"
+
+
 # ---------------------------------------------------------------- v3.2 能力接线
 
 def test_cli_exposes_cards_and_segment_compare_stages():
