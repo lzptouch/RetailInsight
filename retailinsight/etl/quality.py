@@ -1,10 +1,10 @@
-"""数据质量报告：清洗前后对比，落盘 docs/数据质量报告.md。"""
+"""数据质量报告：清洗前后对比，落盘 reports/数据质量报告.md。"""
 import json
 from pathlib import Path
 
 import pandas as pd
 
-from retailinsight.settings import DOCS_DIR
+from retailinsight.settings import REPORTS_DIR
 
 #: ID 列的「缺失哨兵值」。生成器把「会员ID缺失」写成 ``member_id = -1`` 而不是 NaN
 #: （NaN 在 dtype 优化与 groupby 里会被静默吞掉），所以缺失率**不能只判 isna**，
@@ -31,7 +31,7 @@ def build_quality_report(before: dict, after: dict, details: dict) -> dict:
 
 
 def write_quality_report(report: dict, path: Path | None = None) -> Path:
-    path = path or DOCS_DIR / "数据质量报告.md"
+    path = path or REPORTS_DIR / "数据质量报告.md"
     b, a, d = report["before"], report["after"], report["details"]
     lines = [
         "# 数据质量报告",

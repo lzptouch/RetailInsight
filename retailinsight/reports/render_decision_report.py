@@ -11,7 +11,7 @@
 
 输出
 ----
-    docs/决策建议报告.md
+    reports/决策建议报告.md
 """
 import json
 import re
@@ -25,7 +25,6 @@ from retailinsight.io.loader import read_items, read_parquet
 from retailinsight.settings import (
     DATA_END,
     DATA_START,
-    DOCS_DIR,
     INTERIM_DIR,
     ITEMS_DIR,
     MART_CHURN,
@@ -38,7 +37,7 @@ from retailinsight.settings import (
 )
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "决策建议报告.md.tpl"
-OUTPUT_PATH = DOCS_DIR / "决策建议报告.md"
+OUTPUT_PATH = REPORTS_DIR / "决策建议报告.md"
 
 
 # ---------------------------------------------------------------- 基础 KPI
@@ -319,7 +318,7 @@ def collect_kpis() -> dict:
     k.update(_calc_s8(store_gmv, diffs))
 
     k["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 数据规模告警：`--scale 0.05` 之类的小规模跑批会覆盖 docs/ 产物，
+    # 数据规模告警：`--scale 0.05` 之类的小规模跑批会覆盖 reports/ 产物，
     # 报告首行必须显式标出来，否则读者会把小样本结论当正式结论（v3.6 #29）。
     n_members = int(k.get("n_members", 0) or 0)
     k["scale_line"] = (

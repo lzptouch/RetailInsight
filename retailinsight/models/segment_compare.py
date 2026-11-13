@@ -6,14 +6,14 @@
 产出
 ----
 ``mart_segment_conflict``：每个「规则客群 × 聚类簇」组合的人数、占比、GMV 贡献
-``reports/segment_comparison.md``：列联表 + 分歧会员画像 + 结论
+``reports/客群方法差异论证.md``：列联表 + 分歧会员画像 + 结论
 """
 from __future__ import annotations
 
 import pandas as pd
 
 from retailinsight.io.loader import read_parquet, write_parquet
-from retailinsight.settings import DOCS_DIR, MART_CLUSTER, MART_PROFILE, MART_RFM, MARTS_DIR
+from retailinsight.settings import MART_CLUSTER, MART_PROFILE, MART_RFM, MARTS_DIR, REPORTS_DIR
 
 #: 聚类簇 → 业务语义（与 models/cluster.py 的命名保持一致）
 CLUSTER_SEMANTICS = {
@@ -159,7 +159,7 @@ def write_report(conflict: pd.DataFrame, ct: pd.DataFrame) -> str:
         "适合按大额订单做事件营销，而不是月度权益。",
         "",
     ]
-    path = DOCS_DIR / "客群方法差异论证.md"
+    path = REPORTS_DIR / "客群方法差异论证.md"
     path.write_text("\n".join(lines), encoding="utf-8")
     return str(path)
 

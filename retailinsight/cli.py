@@ -9,8 +9,8 @@ Stage 依赖顺序（`all` 按此顺序执行）：
 - `churn`   产出流失得分表（mart_churn_score）
 - `profile` 依赖 mart_rfm + mart_churn_score，产出画像宽表（含 churn_prob）
 - `warehouse` 建 DuckDB 星型模型，并用 SQL 重算 RFM 与 pandas 版做一致性断言
-- `cards`   产出客群画像卡片（docs/客群画像.md）
-- `segment_compare` 产出规则法 vs 聚类法差异论证（docs/客群方法差异论证.md）
+- `cards`   产出客群画像卡片（reports/客群画像.md）
+- `segment_compare` 产出规则法 vs 聚类法差异论证（reports/客群方法差异论证.md）
 - `dashboard` 起 Streamlit 看板（**交互式、会阻塞**，因此不进 `all`）
 """
 import argparse

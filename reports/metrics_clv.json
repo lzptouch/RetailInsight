@@ -1,0 +1,39 @@
+{
+  "method": "bgnbd_gamma_gamma",
+  "penalizer": 0.01,
+  "obs_end": "2021-12-31",
+  "hold_end": "2022-04-01",
+  "hold_days": 91,
+  "n_members": 17937,
+  "n_repeat": 17937,
+  "n_excluded_single_purchase": 5078,
+  "bgnbd": {
+    "n": 17937,
+    "amount_spearman": 0.4449,
+    "amount_mae": 229.27,
+    "amount_bias": -1.44
+  },
+  "simple": {
+    "n": 17937,
+    "amount_spearman": 0.4109,
+    "amount_mae": 270.81,
+    "amount_bias": 74.4
+  },
+  "winner": "bgnbd",
+  "mae_reduction_pct": 15.3,
+  "bgf_params": {
+    "r": 2.7926,
+    "alpha": 101.3077,
+    "a": 0.0313,
+    "b": 0.8515
+  },
+  "ggf_params": {
+    "p": 4.1647,
+    "q": 0.4759,
+    "v": 4.1113
+  },
+  "seed": 42,
+  "cutoff": "2022-04-01",
+  "horizon_months": 12,
+  "gross_margin": 0.3
+}

@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "dashboard" / "app.py"
 REAL_MARTS = ROOT / "data" / "marts"
 

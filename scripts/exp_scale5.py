@@ -1,6 +1,6 @@
 """`--scale 5` 性能压测（计划 §4.4 / R-8）。
 
-逐 stage 以子进程运行，测量**墙钟耗时**与**峰值 RSS**，产出 `docs/性能报告.md`。
+逐 stage 以子进程运行，测量**墙钟耗时**与**峰值 RSS**，产出 `reports/性能报告.md`。
 
 设计要点
 --------
@@ -29,7 +29,7 @@ import psutil
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from retailinsight.settings import DATA_DIR, DOCS_DIR, REPORTS_DIR  # noqa: E402
+from retailinsight.settings import DATA_DIR, REPORTS_DIR  # noqa: E402
 
 DEFAULT_STAGES = ["gen", "etl", "rfm", "cluster", "rules", "rules_sku", "rules_store",
                    "churn", "profile", "warehouse", "reports", "report"]
@@ -169,7 +169,7 @@ def write_report(results: list[dict], scale: float, sizes: dict,
         "",
         f"*生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}*",
     ]
-    out = DOCS_DIR / "性能报告.md"
+    out = REPORTS_DIR / "性能报告.md"
     out.write_text("\n".join(lines), encoding="utf-8")
     return out
 

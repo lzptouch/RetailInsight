@@ -26,7 +26,7 @@ from retailinsight.settings import (
     MART_RFM,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _has_interim() -> bool:
@@ -352,8 +352,8 @@ def test_reports_stage_produces_rule_network():
 
 @requires_interim
 def test_quality_html_artifact_exists():
-    """质量报告 HTML 由 etl stage 产出，产物必须真实存在于 docs/。"""
-    p = ROOT / "docs" / "数据质量报告.html"
-    assert p.exists(), "docs/数据质量报告.html 缺失：etl stage 没跑或没接线"
+    """质量报告 HTML 由 etl stage 产出，产物必须真实存在于 reports/。"""
+    p = ROOT / "reports" / "数据质量报告.html"
+    assert p.exists(), "reports/数据质量报告.html 缺失：etl stage 没跑或没接线"
     html = p.read_text(encoding="utf-8")
     assert html.startswith("<!DOCTYPE html>")

@@ -1,6 +1,6 @@
 """客群画像卡片（计划 §7.3 / R-5）。
 
-产出 `docs/客群画像.md`：每个客群一页，包含
+产出 `reports/客群画像.md`：每个客群一页，包含
 **规模 / GMV 贡献 / 消费能力 / 偏好品类与品牌 / 流失与 CLV / 触达建议**。
 
 触达建议由**规则表**驱动（客群 × 关键指标 → 建议），不写死文案，
@@ -13,11 +13,11 @@ import pandas as pd
 
 from retailinsight.io.loader import read_items, read_parquet
 from retailinsight.settings import (
-    DOCS_DIR,
     INTERIM_DIR,
     ITEMS_DIR,
     MART_PROFILE,
     MART_RFM,
+    REPORTS_DIR,
 )
 
 # 客群 → 触达建议规则（按优先级从上到下匹配，命中第一条即用）
@@ -339,7 +339,7 @@ def main() -> str:
         category_top = _personal_top3_fallback(profile)
 
     md = build_segment_cards(profile, rfm, category_top=category_top)
-    out = DOCS_DIR / "客群画像.md"
+    out = REPORTS_DIR / "客群画像.md"
     out.write_text(md, encoding="utf-8")
     print(f"[cards] 客群画像卡片 -> {out}")
     return md

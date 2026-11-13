@@ -54,7 +54,7 @@ def test_cli_stages_all_importable():
 def test_scripts_compile(script):
     """脚本必须能编译（语法错误在运行前就该暴露，而不是压测跑到一半才炸）。"""
     from pathlib import Path
-    root = Path(__file__).resolve().parent.parent
+    root = Path(__file__).resolve().parents[2]
     path = root / "scripts" / script
     assert path.exists(), f"缺少脚本 {script}"
     compile(path.read_text(encoding="utf-8"), str(path), "exec")
@@ -62,6 +62,6 @@ def test_scripts_compile(script):
 
 def test_dashboard_compiles():
     from pathlib import Path
-    root = Path(__file__).resolve().parent.parent
+    root = Path(__file__).resolve().parents[2]
     path = root / "dashboard" / "app.py"
     compile(path.read_text(encoding="utf-8"), str(path), "exec")

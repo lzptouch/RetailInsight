@@ -195,7 +195,7 @@ def test_segment_conflict_has_rows():
 def test_quality_html_is_self_contained(tmp_path):
     """HTML 报告必须自包含（不依赖外网资源）。
 
-    **必须写到 tmp_path**：早期版本直接写默认路径 `docs/数据质量报告.html`
+    **必须写到 tmp_path**：早期版本直接写默认路径 `reports/数据质量报告.html`
     再 `unlink` —— 等于把 ETL 产出的真实产物删掉了，
     导致「质量报告 HTML」这项能力**交付了但没产出**。
     """
@@ -246,7 +246,7 @@ def test_dashboard_first_paint_under_3s():
 
 def test_dashboard_has_first_paint_timer():
     """看板必须展示首屏耗时（否则「首屏 <3s」只是口头承诺）。"""
-    src = (Path(__file__).resolve().parent.parent / "dashboard" / "app.py").read_text(
+    src = (Path(__file__).resolve().parents[2] / "dashboard" / "app.py").read_text(
         encoding="utf-8")
     assert "_T0 = time.perf_counter()" in src
     assert "本次脚本执行耗时" in src

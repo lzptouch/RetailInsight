@@ -28,7 +28,7 @@ import pytest
 
 from retailinsight.etl.quality import _missing_mask, missing_rates
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 #: 导入名 → 发行包名（少数包两者不同）
 _DIST_ALIAS = {
     "sklearn": "scikit_learn",
@@ -181,7 +181,7 @@ def test_missing_rates_is_not_empty_on_sentinel_only_frame():
 
 def test_quality_report_section3_has_data_rows():
     """产物级断言：报告第三节不能是空表（v3.3 交付时它确实是空的）。"""
-    md = ROOT / "docs" / "数据质量报告.md"
+    md = ROOT / "reports" / "数据质量报告.md"
     assert md.exists(), "先跑 `make etl` 生成质量报告"
     text = md.read_text(encoding="utf-8")
     head = text.split("## 三、", 1)[1].split("## ", 1)[0]
@@ -202,7 +202,7 @@ def test_write_quality_report_does_not_touch_real_artifacts(tmp_path):
     """
     from retailinsight.etl.quality import build_quality_report, write_quality_report
 
-    real = {p.name: p for p in (ROOT / "docs").glob("数据质量报告.*")}
+    real = {p.name: p for p in (ROOT / "reports").glob("数据质量报告.*")}
     stamp = {n: p.read_bytes() for n, p in real.items()}
 
     rep = build_quality_report({"members": 100}, {"members": 98},
@@ -211,7 +211,7 @@ def test_write_quality_report_does_not_touch_real_artifacts(tmp_path):
 
     for name, before in stamp.items():
         assert real[name].read_bytes() == before, (
-            f"测试把真实产物 docs/{name} 覆盖了 —— 产物的写入路径必须跟着入参走"
+            f"测试把真实产物 reports/{name} 覆盖了 —— 产物的写入路径必须跟着入参走"
         )
 
 

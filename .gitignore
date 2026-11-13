@@ -15,6 +15,12 @@ htmlcov/
 /data/interim/
 /data/marts/
 /data/warehouse.duckdb
-/reports/
+# reports/ 是**产物目录**，但其中两类文件是交付证据、必须入库：
+# ① *.md（决策建议报告 / 客群画像 / 方法论证 / 质量报告 / 性能报告）；
+# ② *.json（metrics_*.json 与质量报告，回测与验收的数字来源）。
+# 图（figures/）与 Excel 体积大、可由 `make all` 重跑，不入库。
+/reports/*
+!/reports/*.md
+!/reports/*.json
 
 .DS_Store

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from retailinsight.settings import DOCS_DIR
+from retailinsight.settings import REPORTS_DIR
 
 _HTML_CSS = """
 body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -53,7 +53,7 @@ def _bar_rows(label: str, before: int, after: int, width: int = 300) -> str:
 
 def render_quality_html(report: dict, path: Path | None = None) -> Path:
     """把质量报告渲染成自包含 HTML，返回文件路径。"""
-    path = path or (DOCS_DIR / "数据质量报告.html")
+    path = path or (REPORTS_DIR / "数据质量报告.html")
     before = report.get("before", {})
     after = report.get("after", {})
     details = report.get("details", {})
@@ -99,7 +99,7 @@ def render_quality_html(report: dict, path: Path | None = None) -> Path:
 <body>
 <h1>数据质量报告 · RetailInsight</h1>
 <p class="note">本报告由 <code>retailinsight.etl.quality</code> 自动生成，
-数值与 <code>docs/数据质量报告.json</code> 同源。</p>
+数值与 <code>reports/数据质量报告.json</code> 同源。</p>
 
 <h2>一、清洗动作概览</h2>
 <div class="kv">{kv_html}</div>

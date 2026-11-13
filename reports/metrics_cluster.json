@@ -1,0 +1,513 @@
+{
+  "k": 4,
+  "feature_space": {
+    "selected_space": "rfm3",
+    "selected_features": [
+      "recency_days",
+      "frequency",
+      "monetary"
+    ],
+    "criterion": "ari_vs_persona_then_silhouette",
+    "ranking": [
+      {
+        "space": "rfm3",
+        "ari": 0.1339224905450902,
+        "silhouette": 0.4164508774349119,
+        "k": 4,
+        "reached_target": true
+      },
+      {
+        "space": "base6",
+        "ari": 0.1162944456250687,
+        "silhouette": 0.39226868102125456,
+        "k": 2,
+        "reached_target": true
+      },
+      {
+        "space": "rfm3_behavior",
+        "ari": 0.11041360724894647,
+        "silhouette": 0.3993083975745432,
+        "k": 2,
+        "reached_target": true
+      },
+      {
+        "space": "rfm3_behavior_p1",
+        "ari": 0.10189582477609768,
+        "silhouette": 0.363636656166866,
+        "k": 2,
+        "reached_target": true
+      }
+    ]
+  },
+  "n_members": 35650,
+  "silhouette": 0.4164508774349119,
+  "silhouette_target": 0.35,
+  "reached_target": true,
+  "min_cluster_share": 0.13938288920056102,
+  "ari_vs_persona": 0.1339224905450902,
+  "oracle_silhouette": -0.05634043667422266,
+  "model_comparison": {
+    "k": 4,
+    "n_samples": 35650,
+    "results": [
+      {
+        "model": "KMeans",
+        "silhouette": 0.4164508774349119,
+        "inertia": 25130.092423897942,
+        "n_clusters": 4,
+        "min_cluster_share": 0.13938288920056102,
+        "noise_share": 0.0,
+        "ari_vs_persona": 0.1339224905450902,
+        "batch_scorable": true,
+        "notes": "球形簇假设；可批量打分；异常值会拉歪簇中心"
+      },
+      {
+        "model": "GMM",
+        "silhouette": 0.25364127032618344,
+        "inertia": 19722.20500098946,
+        "n_clusters": 4,
+        "min_cluster_share": 0.00667601683029453,
+        "noise_share": 0.0,
+        "ari_vs_persona": 0.16648187875754464,
+        "batch_scorable": true,
+        "notes": "允许椭球簇与软分配；对协方差估计敏感，高维下易退化"
+      },
+      {
+        "model": "DBSCAN",
+        "silhouette": 0.04222232773597976,
+        "inertia": null,
+        "n_clusters": 6,
+        "min_cluster_share": 0.001479727730097662,
+        "noise_share": 0.05217391304347826,
+        "ari_vs_persona": 0.1277597708856831,
+        "batch_scorable": false,
+        "notes": "密度簇；自动识别噪声点（不强制每个点归属）；但新样本需重训",
+        "dbscan_eps": 0.19735223968570192,
+        "dbscan_min_samples": 50
+      }
+    ],
+    "best_silhouette_model": "KMeans",
+    "recommendation": "KMeans",
+    "reasons": [
+      "K-Means 轮廓系数 0.416 已达验收线 0.35",
+      "最小群占比 13.9% ≥ 2%",
+      "DBSCAN 标出 5.2% 噪声点（长尾会员被单列）",
+      "K-Means 可对新增会员批量打分，DBSCAN 需重训"
+    ],
+    "note": "三种模型在同一特征空间上比较；结论由规则化准则给出，不依赖人工挑选"
+  },
+  "space_evaluations": [
+    {
+      "space": "base6",
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary",
+        "avg_basket",
+        "n_categories",
+        "items_per_txn"
+      ],
+      "k": 2,
+      "silhouette": 0.39226868102125456,
+      "inertia": 128975.79277830492,
+      "ari": 0.1162944456250687,
+      "min_cluster_share": 0.4094249649368864,
+      "reached_target": true,
+      "selection_reason": "max_ari_under_silhouette_and_share_guard",
+      "per_k": [
+        {
+          "k": 2,
+          "inertia": 128975.79277830492,
+          "silhouette": 0.39226868102125456,
+          "min_cluster_share": 0.4094249649368864,
+          "ari": 0.1162944456250687
+        },
+        {
+          "k": 3,
+          "inertia": 108513.6588830917,
+          "silhouette": 0.3471403217598373,
+          "min_cluster_share": 0.13879382889200562,
+          "ari": 0.11465069832487894
+        },
+        {
+          "k": 4,
+          "inertia": 81269.54084631639,
+          "silhouette": 0.353587199858259,
+          "min_cluster_share": 0.003702664796633941,
+          "ari": 0.11516488664650724
+        },
+        {
+          "k": 5,
+          "inertia": 67925.65668700235,
+          "silhouette": 0.2809716765092285,
+          "min_cluster_share": 0.003702664796633941,
+          "ari": 0.24631765437260175
+        },
+        {
+          "k": 6,
+          "inertia": 58797.87424050357,
+          "silhouette": 0.2907741395833472,
+          "min_cluster_share": 0.003702664796633941,
+          "ari": 0.2270207280765838
+        },
+        {
+          "k": 7,
+          "inertia": 52413.238566253975,
+          "silhouette": 0.27289857344300444,
+          "min_cluster_share": 0.003702664796633941,
+          "ari": 0.2738090042415001
+        },
+        {
+          "k": 8,
+          "inertia": 47727.708664391874,
+          "silhouette": 0.2806728891328517,
+          "min_cluster_share": 0.003702664796633941,
+          "ari": 0.3391434285543397
+        }
+      ],
+      "oracle_silhouette": 0.06927594082824452
+    },
+    {
+      "space": "rfm3",
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary"
+      ],
+      "k": 4,
+      "silhouette": 0.4164508774349119,
+      "inertia": 25130.092423897942,
+      "ari": 0.1339224905450902,
+      "min_cluster_share": 0.13938288920056102,
+      "reached_target": true,
+      "selection_reason": "max_ari_under_silhouette_and_share_guard",
+      "per_k": [
+        {
+          "k": 2,
+          "inertia": 52195.540566717245,
+          "silhouette": 0.48031107959602803,
+          "min_cluster_share": 0.44698457223001403,
+          "ari": 0.11584709570277525
+        },
+        {
+          "k": 3,
+          "inertia": 31829.97590517912,
+          "silhouette": 0.5036684094058546,
+          "min_cluster_share": 0.15127629733520337,
+          "ari": 0.1131365411061874
+        },
+        {
+          "k": 4,
+          "inertia": 25130.092423897942,
+          "silhouette": 0.4164508774349119,
+          "min_cluster_share": 0.13938288920056102,
+          "ari": 0.1339224905450902
+        },
+        {
+          "k": 5,
+          "inertia": 19492.27653243274,
+          "silhouette": 0.4234647840900302,
+          "min_cluster_share": 0.0036746143057503505,
+          "ari": 0.13340275076498181
+        },
+        {
+          "k": 6,
+          "inertia": 15592.23695197775,
+          "silhouette": 0.44396440611436955,
+          "min_cluster_share": 0.0036746143057503505,
+          "ari": 0.14674722129973145
+        },
+        {
+          "k": 7,
+          "inertia": 12760.261499436134,
+          "silhouette": 0.43103394457367206,
+          "min_cluster_share": 0.0036746143057503505,
+          "ari": 0.14586856576985494
+        },
+        {
+          "k": 8,
+          "inertia": 10415.835463001797,
+          "silhouette": 0.40313006907168786,
+          "min_cluster_share": 0.0036746143057503505,
+          "ari": 0.15224990642425792
+        }
+      ],
+      "oracle_silhouette": -0.05634043667422266
+    },
+    {
+      "space": "rfm3_behavior",
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary",
+        "weekend_ratio",
+        "discount_sensitivity",
+        "seasonality_strength"
+      ],
+      "k": 2,
+      "silhouette": 0.3993083975745432,
+      "inertia": 130486.71557647789,
+      "ari": 0.11041360724894647,
+      "min_cluster_share": 0.42684431977559606,
+      "reached_target": true,
+      "selection_reason": "max_ari_under_silhouette_and_share_guard",
+      "per_k": [
+        {
+          "k": 2,
+          "inertia": 130486.71557647789,
+          "silhouette": 0.3993083975745432,
+          "min_cluster_share": 0.42684431977559606,
+          "ari": 0.11041360724894647
+        },
+        {
+          "k": 3,
+          "inertia": 103666.12189620221,
+          "silhouette": 0.4368911308200235,
+          "min_cluster_share": 0.1438148667601683,
+          "ari": 0.09462437765458506
+        },
+        {
+          "k": 4,
+          "inertia": 89239.89319957566,
+          "silhouette": 0.4012319441998656,
+          "min_cluster_share": 0.10460028050490884,
+          "ari": 0.09586039384712962
+        },
+        {
+          "k": 5,
+          "inertia": 78685.2943128549,
+          "silhouette": 0.3064947987246443,
+          "min_cluster_share": 0.09007012622720897,
+          "ari": 0.107088616854382
+        },
+        {
+          "k": 6,
+          "inertia": 68722.52022343784,
+          "silhouette": 0.32128053643843285,
+          "min_cluster_share": 0.05102384291725105,
+          "ari": 0.10416125975117053
+        },
+        {
+          "k": 7,
+          "inertia": 63223.07422895224,
+          "silhouette": 0.3208813261593748,
+          "min_cluster_share": 2.8050490883590464e-05,
+          "ari": 0.10428805300568014
+        },
+        {
+          "k": 8,
+          "inertia": 58079.89018922887,
+          "silhouette": 0.2918704898970291,
+          "min_cluster_share": 0.00011220196353436185,
+          "ari": 0.14495569203216366
+        }
+      ],
+      "oracle_silhouette": -0.038916760660612296
+    },
+    {
+      "space": "rfm3_behavior_p1",
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary",
+        "weekend_ratio",
+        "discount_sensitivity",
+        "seasonality_strength",
+        "promo_response_rate",
+        "coupon_used_rate",
+        "store_concentration",
+        "channel_preference",
+        "repurchase_cycle_days",
+        "cross_category_ratio",
+        "silence_ratio"
+      ],
+      "k": 2,
+      "silhouette": 0.363636656166866,
+      "inertia": 302167.8340589866,
+      "ari": 0.10189582477609768,
+      "min_cluster_share": 0.3504908835904628,
+      "reached_target": true,
+      "selection_reason": "max_ari_under_silhouette_and_share_guard",
+      "per_k": [
+        {
+          "k": 2,
+          "inertia": 302167.8340589866,
+          "silhouette": 0.363636656166866,
+          "min_cluster_share": 0.3504908835904628,
+          "ari": 0.10189582477609768
+        },
+        {
+          "k": 3,
+          "inertia": 267855.71896907926,
+          "silhouette": 0.32353015729660944,
+          "min_cluster_share": 0.1276297335203366,
+          "ari": 0.09295370456181398
+        },
+        {
+          "k": 4,
+          "inertia": 238121.62518935482,
+          "silhouette": 0.22632589415754092,
+          "min_cluster_share": 0.07481065918653576,
+          "ari": 0.16707607566329402
+        },
+        {
+          "k": 5,
+          "inertia": 212479.73106479523,
+          "silhouette": 0.22681040891868087,
+          "min_cluster_share": 0.07276297335203366,
+          "ari": 0.1608824559453965
+        },
+        {
+          "k": 6,
+          "inertia": 197409.52998511185,
+          "silhouette": 0.2383034163891445,
+          "min_cluster_share": 0.07178120617110799,
+          "ari": 0.15416958495158592
+        },
+        {
+          "k": 7,
+          "inertia": 182489.5995102592,
+          "silhouette": 0.24751337212782737,
+          "min_cluster_share": 0.06148667601683029,
+          "ari": 0.14801780349324664
+        },
+        {
+          "k": 8,
+          "inertia": 170099.27831151756,
+          "silhouette": 0.24026199407274781,
+          "min_cluster_share": 0.06072931276297335,
+          "ari": 0.1771167543549548
+        }
+      ],
+      "oracle_silhouette": 0.012520802434483008
+    }
+  ],
+  "feature_space_conclusion": {
+    "finding": "扩展行为维度并没有提升对先验人群的还原度（选中空间 ARI 0.1339 为所有空间最高）",
+    "evidence": {
+      "base6": "ARI 0.1163 / 轮廓 0.3923 / 神谕上界 +0.0693",
+      "rfm3": "ARI 0.1339 / 轮廓 0.4165 / 神谕上界 -0.0563",
+      "rfm3_behavior": "ARI 0.1104 / 轮廓 0.3993 / 神谕上界 -0.0389",
+      "rfm3_behavior_p1": "ARI 0.1019 / 轮廓 0.3636 / 神谕上界 +0.0125"
+    },
+    "interpretation": "各特征空间的**神谕上界最高仅 +0.0693**（即使用真实先验人群当标签，这些特征也分不开）。说明 ARI 的上限由**数据本身**决定（8 类人群在可观测行为上本就重合），而不是特征工程投入不足。继续堆特征只会因高维稀释拉低内聚度。",
+    "implication": "主口径继续用 rfm3（内部指标最优），聚类作为**交叉验证**而非「找回人群」的手段；要在真实业务里进一步细分，必须引入画像宽表之外的**时序行为特征**（如跨品类顺序模式、促销响应时滞），这已列入计划的演进方向。"
+  },
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "member_cnt": 10418,
+      "gmv": 9821438.0,
+      "avg_recency": 100.6931272797082,
+      "avg_frequency": 6.56527164522941,
+      "avg_monetary": 942.7373657226562,
+      "avg_basket": 149.99594643885584,
+      "avg_n_categories": 18.044058360529853,
+      "member_share": 0.29223001402524545,
+      "gmv_share": 0.2296072244644165,
+      "recency_pct": 0.4706478968728468,
+      "frequency_pct": 0.5451129275929539,
+      "monetary_pct": 0.550220759624956,
+      "active_pct": 0.5293521031271532,
+      "cluster_name": "一般维持"
+    },
+    {
+      "cluster_id": 1,
+      "member_cnt": 9541,
+      "gmv": 1720042.625,
+      "avg_recency": 94.03898962372917,
+      "avg_frequency": 1.393354994235405,
+      "avg_monetary": 180.27906799316406,
+      "avg_basket": 135.25322293260663,
+      "avg_n_categories": 5.700555497327324,
+      "member_share": 0.2676297335203366,
+      "gmv_share": 0.04021144658327103,
+      "recency_pct": 0.4561108116399688,
+      "frequency_pct": 0.2060723256373578,
+      "monetary_pct": 0.2024572932672795,
+      "active_pct": 0.5438891883600312,
+      "cluster_name": "低频低额"
+    },
+    {
+      "cluster_id": 2,
+      "member_cnt": 10722,
+      "gmv": 29953804.0,
+      "avg_recency": 53.270565193060996,
+      "avg_frequency": 19.288285767580675,
+      "avg_monetary": 2793.677001953125,
+      "avg_basket": 149.96321581794442,
+      "avg_n_categories": 30.287259839582166,
+      "member_share": 0.30075736325385694,
+      "gmv_share": 0.7002650499343872,
+      "recency_pct": 0.36958556328457065,
+      "frequency_pct": 0.8466600124581644,
+      "monetary_pct": 0.841490924664209,
+      "active_pct": 0.6304144367154294,
+      "cluster_name": "高价值活跃"
+    },
+    {
+      "cluster_id": 3,
+      "member_cnt": 4969,
+      "gmv": 1279668.875,
+      "avg_recency": 589.70637955323,
+      "avg_frequency": 1.863352787281143,
+      "avg_monetary": 257.53045654296875,
+      "avg_basket": 139.45876232642382,
+      "avg_n_categories": 5.8850875427651435,
+      "member_share": 0.13938288920056102,
+      "gmv_share": 0.029916314408183098,
+      "recency_pct": 0.9273174777590203,
+      "frequency_pct": 0.22187337650515945,
+      "monetary_pct": 0.22925928696205394,
+      "active_pct": 0.07268252224097971,
+      "cluster_name": "沉睡流失"
+    }
+  ],
+  "persona_validation": {
+    "ari": 0.1339224905450902,
+    "nmi": 0.24873227511136903,
+    "crosstab": {
+      "0": {
+        "一次性": 3,
+        "促销敏感": 2147,
+        "周末囤货": 2129,
+        "季节性": 1699,
+        "新客尝鲜": 725,
+        "沉默流失": 2010,
+        "高频低额": 910,
+        "高频高值": 795
+      },
+      "1": {
+        "一次性": 1960,
+        "促销敏感": 765,
+        "周末囤货": 675,
+        "季节性": 519,
+        "新客尝鲜": 2770,
+        "沉默流失": 2189,
+        "高频低额": 367,
+        "高频高值": 296
+      },
+      "2": {
+        "一次性": 0,
+        "促销敏感": 2416,
+        "周末囤货": 1531,
+        "季节性": 694,
+        "新客尝鲜": 0,
+        "沉默流失": 640,
+        "高频低额": 3003,
+        "高频高值": 2438
+      },
+      "3": {
+        "一次性": 3200,
+        "促销敏感": 31,
+        "周末囤货": 27,
+        "季节性": 2,
+        "新客尝鲜": 0,
+        "沉默流失": 1685,
+        "高频低额": 16,
+        "高频高值": 8
+      }
+    },
+    "n_compared": 35650
+  }
+}

@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DICT_MD = ROOT / "docs" / "数据字典.md"
 MARTS = ROOT / "data" / "marts"
 
